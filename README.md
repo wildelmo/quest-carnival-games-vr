@@ -20,12 +20,12 @@ teleport between.
   (shards, real pop sound), darts stick in the cork. Hit the big red
   RESET button and watch the nozzles re-inflate the board one balloon at
   a time — no instant respawns.
-- **⭕ Ring Toss** — 144 glass soda bottles packed neck-to-neck in wooden
-  crates, five gold bottles hiding in the field. Grab rings from the
-  bucket (20 a round) and lob them: a flat ring over a crown is a RINGER
-  and slides down the neck; tilted rings clatter off the glass and wedge
-  between the shoulders, just like the real (honest-but-brutal) game.
-  RESET sweeps every ring back into the bucket.
+- **⭕ Ring Toss** — a full square field of 324 glass soda bottles packed
+  neck-to-neck in wooden crates, ten gold bottles hiding in the field.
+  Grab rings from the bucket (20 a round) and lob them: a flat ring over
+  a crown is a RINGER and slides down the neck; tilted rings clatter off
+  the glass and wedge between the shoulders, just like the real
+  (honest-but-brutal) game. RESET sweeps every ring back into the bucket.
 
 Three more pads stand roped off with "coming soon" marquees:
 Milk Bottles, Whack-a-Mole, Skee-Ball.
@@ -112,8 +112,10 @@ haptics, and locomotion blockers.
 
 - Fixed 90Hz physics step, allocation-free hot paths, bodies sleep.
 - Lambert/Basic materials only, 3 point lights + hemisphere, no shadows;
-  string lights and bunting are instanced meshes.
-- Strongest fixed foveation is enabled; whole scene is ~20k triangles.
+  string lights, bunting and the ring-toss bottle field are instanced
+  meshes.
+- Strongest fixed foveation is enabled; whole scene is ~55k triangles,
+  most of it the 324-bottle field (a single static draw call).
 
 ## Audio
 
