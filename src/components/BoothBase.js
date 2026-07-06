@@ -50,13 +50,17 @@ export class BoothBase {
     this.scoreboard.group.rotation.x = -0.25;
     this.group.add(this.scoreboard.group);
 
-    // start button on the counter, right of centre
+    // start button on the counter. Games place it near their play area via
+    // startButtonLocal so it's easy to reach and reads straight-on; default
+    // is toward the front-right of the counter.
     this.startButton = new PushButton(deps, {
       color: 0x2ecc71,
       label: 'START',
       onPress: () => opts.onStart && opts.onStart(),
     });
-    this.startButton.group.position.set(this.width / 2 - 0.55, COUNTER_HEIGHT + 0.03, this.depth / 2 - 0.18);
+    const sb = opts.startButtonLocal
+      ?? new THREE.Vector3(this.width / 2 - 0.55, COUNTER_HEIGHT + 0.03, this.depth / 2 - 0.18);
+    this.startButton.group.position.copy(sb);
     this.group.add(this.startButton.group);
 
     // physics: players can't walk into the booth

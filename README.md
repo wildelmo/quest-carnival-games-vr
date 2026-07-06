@@ -24,6 +24,10 @@ teleport between.
 Four more pads stand roped off with "coming soon" marquees:
 Ring Toss, Milk Bottles, Whack-a-Mole, Skee-Ball.
 
+A brass **EXIT bell** on a striped post by the tent's centre pole ends the
+experience — pull its cord (or press `E` on desktop) to ring out, drop back
+to the splash screen and pause the audio.
+
 ![Ball toss booth](docs/balltoss.png)
 ![Balloon dart booth](docs/darts.png)
 
@@ -53,7 +57,7 @@ gives you a mouse/keyboard version of the same tent.
 | Teleport | push right stick forward, aim arc, release | — |
 | Grab ball/dart | grip or trigger near the object | click (nearest object ahead) |
 | Throw | swing arm + release grip | click again (throws along view) |
-| Buttons | physically poke the dome | look at it up close, press `E` |
+| Buttons / exit bell | physically poke / touch | look at it up close, press `E` |
 
 ## Project layout
 

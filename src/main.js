@@ -6,6 +6,7 @@ import { Locomotion } from './core/Locomotion.js';
 import { AudioManager } from './core/AudioManager.js';
 import { Tent, TENT_RADIUS } from './env/Tent.js';
 import { ComingSoonBooth } from './components/BoothBase.js';
+import { ExitBell } from './components/ExitBell.js';
 import { BallTossGame } from './games/BallTossGame.js';
 import { BalloonDartGame } from './games/BalloonDartGame.js';
 
@@ -52,6 +53,28 @@ const overlay = document.getElementById('overlay');
 const btnVR = document.getElementById('btn-vr');
 const btnDesktop = document.getElementById('btn-desktop');
 const loading = document.getElementById('loading');
+
+/**
+ * Fully leave the experience: end the VR session (or release the desktop
+ * pointer lock), bring the splash screen back, and pause all audio. The
+ * enter buttons resume from here.
+ */
+function exitExperience() {
+  audio.suspend();
+  const session = world.renderer.xr.getSession();
+  if (session) {
+    session.end().catch(() => {});          // 'end' handler reveals the overlay
+  } else {
+    if (document.pointerLockElement) document.exitPointerLock();
+    overlay.classList.remove('hidden');
+  }
+}
+
+// ---- exit bell at the centre pole ----------------------------------------
+const exitBell = new ExitBell(deps, { onExit: exitExperience });
+exitBell.group.position.set(-0.55, 0, 0.7);
+exitBell.group.rotation.y = -0.5;           // angle the sign toward the spawn
+world.scene.add(exitBell.group);
 
 async function boot() {
   await audio.load();
@@ -104,4 +127,4 @@ boot();
 world.start();
 
 // dev convenience: expose for console poking
-window.__carnival = { world, games, tent, input, deps };
+window.__carnival = { world, games, tent, input, deps, exitBell, exitExperience };
