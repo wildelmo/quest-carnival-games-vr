@@ -9,6 +9,7 @@ import { ComingSoonBooth } from './components/BoothBase.js';
 import { ExitBell } from './components/ExitBell.js';
 import { BallTossGame } from './games/BallTossGame.js';
 import { BalloonDartGame } from './games/BalloonDartGame.js';
+import { RingTossGame } from './games/RingTossGame.js';
 
 /**
  * Carnival Arcade VR — entry point.
@@ -39,11 +40,12 @@ const deps = { world, input, audio, grabbables, locomotion };
 const games = [
   new BallTossGame(deps, tent.getPad(0)),
   new BalloonDartGame(deps, tent.getPad(1)),
+  new RingTossGame(deps, tent.getPad(2)),
 ];
 
 // ---- future booths: decorated placeholders keep the tent feeling full ----
-const upcoming = ['RING TOSS', 'MILK BOTTLES', 'WHACK-A-MOLE', 'SKEE-BALL'];
-upcoming.forEach((name, i) => new ComingSoonBooth(world, tent.getPad(2 + i), name));
+const upcoming = ['MILK BOTTLES', 'WHACK-A-MOLE', 'SKEE-BALL'];
+upcoming.forEach((name, i) => new ComingSoonBooth(world, tent.getPad(3 + i), name));
 
 // ---- spawn: face the ball toss booth, offset so the pole isn't in view ----
 world.rig.position.set(1.1, 0, 2.4);
