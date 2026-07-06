@@ -10,6 +10,14 @@ import * as THREE from 'three';
  *  - Desktop: click grabs the nearest object in front of the camera,
  *    clicking again throws it along the view direction.
  *
+ * HOLDING IS NATURAL: grabbing captures the object's pose relative to the
+ * hand at that instant, and the object rides the wrist from there — pick a
+ * dart up sideways and it stays sideways in your fingers until you turn it,
+ * exactly like lifting any real object. Nothing is ever snapped to a canned
+ * "aim" orientation. (Only the POSITION eases toward the palm over a few
+ * frames, so a long-armed desktop grab doesn't leave the object floating
+ * half a metre from the hand.)
+ *
  * A grabbable with a physics `body` gets its body disabled while held and
  * re-enabled with the throw velocity on release. Objects without a body
  * (darts) receive the velocity via their `onThrow` callback instead.
@@ -17,9 +25,11 @@ import * as THREE from 'three';
 
 const _v1 = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
+const _q1 = new THREE.Quaternion();
 
 const VR_REACH = 0.16;       // metres from grip centre
 const DESKTOP_REACH = 1.4;   // desktop arm is longer for playability
+const SETTLE_TIME = 0.18;    // s for the grab point to ease into the palm
 
 export class Grabbable {
   constructor(object, opts = {}) {
@@ -28,16 +38,18 @@ export class Grabbable {
     this.body = opts.body ?? null;       // SphereBody (optional)
     this.enabled = true;
     this.heldBy = null;
-    // pose of the object relative to the hand while held. The object rides
-    // the hand rigidly (gripQuaternion * holdQuaternion) — the player aims
-    // by rotating their wrist, exactly like holding the real thing.
+    /** where the object settles relative to the palm (position only —
+     *  orientation is always whatever it was when grabbed) */
     this.holdPosition = opts.holdPosition ?? new THREE.Vector3(0, 0, -0.03);
-    this.holdQuaternion = opts.holdQuaternion ?? new THREE.Quaternion();
     /** throw assist multiplier — casual flicks should still reach the targets */
     this.throwBoost = opts.throwBoost ?? 1.3;
     this.onGrab = opts.onGrab ?? null;
     /** (velocity: Vector3, hand) — called on release for bodiless objects */
     this.onThrow = opts.onThrow ?? null;
+    // captured at grab time: hand-local pose of the object
+    this._grabQuat = new THREE.Quaternion();
+    this._grabPos = new THREE.Vector3();
+    this._settle = 1;
   }
 }
 
@@ -53,7 +65,7 @@ export class Grabbables {
     this.audio = audio;
     this.items = [];
     this.held = [null, null]; // per hand index
-    world.onUpdate(() => this.#update());
+    world.onUpdate((dt) => this.#update(dt));
   }
 
   add(object, opts) {
@@ -81,7 +93,7 @@ export class Grabbables {
     }
   }
 
-  #update() {
+  #update(dt) {
     const { hands, isXR } = this.input;
     for (const hand of hands) {
       if (!hand.connected) continue;
@@ -99,12 +111,16 @@ export class Grabbables {
       if (hand.justReleased && holding && isXR) {
         this.#release(hand, false);
       }
-      // follow the hand while held
+      // follow the hand while held: the pose captured at grab time rides
+      // the wrist 1:1 — turn your hand, the object turns with it
       const g = this.held[idx];
       if (g) {
-        g.object.position.copy(g.holdPosition).applyQuaternion(hand.gripQuaternion)
+        g._settle = Math.min(1, g._settle + dt / SETTLE_TIME);
+        const k = g._settle * (2 - g._settle); // ease-out
+        _v1.lerpVectors(g._grabPos, g.holdPosition, k);
+        g.object.position.copy(_v1).applyQuaternion(hand.gripQuaternion)
           .add(hand.gripPosition);
-        g.object.quaternion.copy(hand.gripQuaternion).multiply(g.holdQuaternion);
+        g.object.quaternion.copy(hand.gripQuaternion).multiply(g._grabQuat);
       }
     }
   }
@@ -123,7 +139,15 @@ export class Grabbables {
     this.held[hand.index] = best;
     if (best.body) best.body.enabled = false;
     // reparent to scene root so rig motion doesn't double-transform
+    // (attach() preserves the world pose)
     this.world.scene.attach(best.object);
+    // capture the object's pose in hand space AT THIS INSTANT — this is
+    // what makes holding feel like picking up a real object: whatever
+    // orientation you grabbed it in is the orientation it keeps
+    _q1.copy(hand.gripQuaternion).invert();
+    best._grabQuat.copy(_q1).multiply(best.object.quaternion);
+    best._grabPos.copy(best.object.position).sub(hand.gripPosition).applyQuaternion(_q1);
+    best._settle = 0;
     hand.pulse(0.4, 30);
     if (best.onGrab) best.onGrab(hand);
   }

@@ -18,9 +18,10 @@ import { shiny } from '../core/environment.js';
  * limp scraps of rubber swell back into balloons one after another with a
  * wobbly overshoot, then lock — no balloons ever just "appear".
  *
- * A held dart rides the hand rigidly: point the controller where you want
- * the dart to go and it goes there. No orientation cleverness — that made
- * darts pivot at the player's face when they cocked their arm back.
+ * A held dart is a FREE OBJECT: it keeps whatever orientation you grabbed
+ * it in and turns 1:1 with your wrist, like picking anything up in real
+ * life (see Grabbables). On release the needle swings into the flight
+ * path over the first fraction of a second, so any grip throws true.
  *
  * Darts are NOT physics bodies: they fly on a swept segment each frame and
  * test balloon spheres + the board plane, which is cheaper and far more
@@ -41,6 +42,7 @@ const _v2 = new THREE.Vector3();
 const _v3 = new THREE.Vector3();
 const _m1 = new THREE.Matrix4();
 const _c1 = new THREE.Color();
+const _q1 = new THREE.Quaternion();
 
 export class BalloonDartGame extends MiniGame {
   constructor(deps, pad) {
@@ -247,8 +249,8 @@ export class BalloonDartGame extends MiniGame {
       d.grab = this.deps.grabbables.add(dart, {
         radius: 0.075,
         throwBoost: 1.45, // darts are precise, not powerful — help them along
-        // rigid hold: the dart's nose tracks the controller's forward, so the
-        // player aims it exactly like a real dart held in the fingers
+        // where the dart settles against the palm; its ORIENTATION is
+        // whatever it was when grabbed — turn it in your hand at will
         holdPosition: new THREE.Vector3(0, 0, -0.02),
         onGrab: () => { d.state = 'held'; },
         onThrow: (vel) => this.#throwDart(d, vel),
@@ -372,12 +374,16 @@ export class BalloonDartGame extends MiniGame {
           d.prevPos.copy(d.mesh.position);
           d.velocity.y += DART_GRAVITY * dt;
           d.mesh.position.addScaledVector(d.velocity, dt);
-          // nose follows the velocity vector. lookAt() points an object's
-          // +Z at the target, and the nose is modelled on -Z — so look at
-          // a point BEHIND the dart to make the needle lead.
+          // the needle SWINGS into the velocity vector rather than snapping:
+          // a dart released at any angle (it holds its natural grip pose)
+          // visibly rights itself over the first ~100ms, like real flights
+          // do. lookAt() points +Z at the target and the nose is modelled
+          // on -Z, so aim at a point BEHIND the dart to make the needle lead.
+          _q1.copy(d.mesh.quaternion);
           _v1.copy(d.velocity).normalize();
           _v2.copy(d.mesh.position).sub(_v1);
           d.mesh.lookAt(_v2);
+          d.mesh.quaternion.slerp(_q1, Math.exp(-14 * dt));
           this.#sweepDart(d);
           // settle on whatever is below: the counter top when the dart is
           // over it (a gentle drop near the tray), otherwise the tent floor
