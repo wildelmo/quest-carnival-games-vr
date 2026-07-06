@@ -20,9 +20,15 @@ teleport between.
   (shards, real pop sound), darts stick in the cork. Hit the big red
   RESET button and watch the nozzles re-inflate the board one balloon at
   a time — no instant respawns.
+- **⭕ Ring Toss** — 144 glass soda bottles packed neck-to-neck in wooden
+  crates, five gold bottles hiding in the field. Grab rings from the
+  bucket (20 a round) and lob them: a flat ring over a crown is a RINGER
+  and slides down the neck; tilted rings clatter off the glass and wedge
+  between the shoulders, just like the real (honest-but-brutal) game.
+  RESET sweeps every ring back into the bucket.
 
-Four more pads stand roped off with "coming soon" marquees:
-Ring Toss, Milk Bottles, Whack-a-Mole, Skee-Ball.
+Three more pads stand roped off with "coming soon" marquees:
+Milk Bottles, Whack-a-Mole, Skee-Ball.
 
 A brass **EXIT bell** on a striped post by the tent's centre pole ends the
 experience — pull its cord (or press `E` on desktop) to ring out, drop back
@@ -55,7 +61,7 @@ gives you a mouse/keyboard version of the same tent.
 | Move | left stick (smooth walk) | WASD (+Shift to hurry) |
 | Turn | right stick left/right = 30° snap | mouse look (click to lock pointer) |
 | Teleport | push right stick forward, aim arc, release | — |
-| Grab ball/dart | grip or trigger near the object | click (nearest object ahead) |
+| Grab ball/dart/ring | grip or trigger near the object | click (nearest object ahead) |
 | Throw | swing arm + release grip | click again (throws along view) |
 | Buttons / exit bell | physically poke / touch | look at it up close, press `E` |
 
@@ -81,21 +87,22 @@ src/
     registry.js      MiniGame base class + how-to-add-a-booth notes
     BallTossGame.js
     BalloonDartGame.js
+    RingTossGame.js
 public/assets/       CC0 sounds + free music (see CREDITS.md)
 ```
 
 ## Adding a booth
 
-The tent exposes six pads (`tent.getPad(i)`); two are taken. To add game #3:
+The tent exposes six pads (`tent.getPad(i)`); three are taken. To add game #4:
 
-1. `src/games/RingTossGame.js` — subclass `MiniGame`, build on `BoothBase`
+1. `src/games/MilkBottlesGame.js` — subclass `MiniGame`, build on `BoothBase`
    (that alone gets you the stall, sign, scoreboard, reset button and
    prize shelf), add your props to `this.booth.group`.
 2. Implement `onRoundStart / onRoundEnd / onUpdate / onResetRound`; call
    `tryStart()` from your throw handler (the first throw starts the round)
    and `finishReset()` when your reset sequence finishes.
 3. In `src/main.js`, replace a `ComingSoonBooth` with
-   `new RingTossGame(deps, tent.getPad(2))`.
+   `new MilkBottlesGame(deps, tent.getPad(3))`.
 
 Reusable bits you get for free: `SphereBody` + `BoxCollider` + `ForceZone`
 physics, the grab/throw system, positional audio with sample variations,
