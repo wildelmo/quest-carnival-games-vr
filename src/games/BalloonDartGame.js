@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { MiniGame } from './registry.js';
 import { BoothBase } from '../components/BoothBase.js';
 import { corkTexture, CARNIVAL_PALETTE } from '../core/textures.js';
+import { shiny } from '../core/environment.js';
 
 /**
  * BALLOON DARTS — pop the wall of balloons.
@@ -84,8 +85,8 @@ export class BalloonDartGame extends MiniGame {
       new THREE.BoxGeometry(BOARD_W, BOARD_H, 0.05),
       new THREE.MeshLambertMaterial({ map: corkTexture() }),
     );
-    // candy-striped frame
-    const frameMat = new THREE.MeshLambertMaterial({ color: 0xe02249 });
+    // lacquered candy frame
+    const frameMat = shiny({ color: 0xe02249, roughness: 0.26 });
     for (const [x, y, w, h] of [
       [0, BOARD_H / 2 + 0.04, BOARD_W + 0.16, 0.08],
       [0, -BOARD_H / 2 - 0.04, BOARD_W + 0.16, 0.08],
@@ -107,14 +108,16 @@ export class BalloonDartGame extends MiniGame {
     balloonGeo.scale(1, 1.18, 1);
     const knotGeo = new THREE.ConeGeometry(0.02, 0.03, 6);
     const nozzleGeo = new THREE.CylinderGeometry(0.012, 0.016, 0.04, 8);
-    const nozzleMat = new THREE.MeshLambertMaterial({ color: 0xd4af37 });
+    const nozzleMat = shiny({ color: 0xd4af37, metalness: 1, roughness: 0.35 });
 
-    // materials shared per palette colour (+ gold)
-    const mats = CARNIVAL_PALETTE.map(c => new THREE.MeshLambertMaterial({
-      color: c, emissive: c, emissiveIntensity: 0.08,
+    // taut latex: tight speculars + env glints sell "balloon" instantly
+    const mats = CARNIVAL_PALETTE.map(c => shiny({
+      color: c, roughness: 0.16, envIntensity: 1.1,
+      emissive: c, emissiveIntensity: 0.05,
     }));
-    const goldMat = new THREE.MeshLambertMaterial({
-      color: 0xffd23f, emissive: 0xffb300, emissiveIntensity: 0.45,
+    const goldMat = shiny({
+      color: 0xffd23f, metalness: 0.65, roughness: 0.2, envIntensity: 1.3,
+      emissive: 0xffb300, emissiveIntensity: 0.3,
     });
 
     // pick GOLD_COUNT random bonus balloons
@@ -209,23 +212,27 @@ export class BalloonDartGame extends MiniGame {
     ], 3));
     flightGeo.setIndex([0, 1, 2, 0, 2, 3]);
     flightGeo.computeVertexNormals();
-    const steelMat = new THREE.MeshLambertMaterial({ color: 0xc7ccd8 });
-    const shaftMat = new THREE.MeshLambertMaterial({ color: 0x2a2a35 });
+    const steelMat = shiny({ color: 0xc7ccd8, metalness: 1, roughness: 0.22 });
+    const shaftMat = shiny({ color: 0x2a2a35, metalness: 0.6, roughness: 0.35 });
 
     for (let i = 0; i < DART_COUNT; i++) {
       const color = CARNIVAL_PALETTE[(i * 2 + 1) % CARNIVAL_PALETTE.length];
       const dart = new THREE.Group();
       const needle = new THREE.Mesh(needleGeo, steelMat);
       needle.position.z = -0.075;                       // tip ends at z=-0.1
-      const barrel = new THREE.Mesh(barrelGeo, new THREE.MeshLambertMaterial({ color }));
+      // anodised metal barrel — the part you grip
+      const barrel = new THREE.Mesh(barrelGeo,
+        shiny({ color, metalness: 0.8, roughness: 0.3 }));
       barrel.position.z = -0.022;
       const shaft = new THREE.Mesh(shaftGeo, shaftMat);
       shaft.position.z = 0.033;
-      const f1 = new THREE.Mesh(flightGeo, new THREE.MeshLambertMaterial({ color, side: THREE.DoubleSide }));
+      const f1 = new THREE.Mesh(flightGeo,
+        shiny({ color, roughness: 0.2, side: THREE.DoubleSide }));
       const f2 = f1.clone();
       f2.rotation.z = Math.PI / 2;
       dart.add(needle, barrel, shaft, f1, f2);
       this.deps.world.scene.add(dart);
+      this.deps.shadows?.track(dart, { radius: 0.07, strength: 0.55 });
 
       const rackPosLocal = new THREE.Vector3(-0.4 - 0.225 + i * 0.09, h + 0.035, 1.42);
       const d = {

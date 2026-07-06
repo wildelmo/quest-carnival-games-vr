@@ -4,6 +4,9 @@ import { Input } from './core/Input.js';
 import { Grabbables } from './core/Grabbables.js';
 import { Locomotion } from './core/Locomotion.js';
 import { AudioManager } from './core/AudioManager.js';
+import { BlobShadows } from './core/Shadows.js';
+import { initEnvironment } from './core/environment.js';
+import { loadFonts } from './core/textures.js';
 import { Tent, TENT_RADIUS } from './env/Tent.js';
 import { ComingSoonBooth } from './components/BoothBase.js';
 import { ExitBell } from './components/ExitBell.js';
@@ -15,26 +18,37 @@ import { RingTossGame } from './games/RingTossGame.js';
  * Carnival Arcade VR — entry point.
  *
  * Boot order matters a little:
- *  1. World (renderer/scene/loop) and Input register their update hooks first
- *  2. Environment + games build the scene and physics
- *  3. Audio preloads, then the overlay buttons enter VR / desktop mode
+ *  1. The display fonts load FIRST — every sign/scoreboard is painted to
+ *     canvas once at build time, so the type must be ready before the scene
+ *  2. World (renderer/scene/loop) and Input register their update hooks
+ *  3. The env map bakes, then environment + games build the scene/physics
+ *  4. Audio preloads, then the overlay buttons enter VR / desktop mode
  *
  * ADDING A BOOTH: see src/games/registry.js — build a MiniGame subclass and
  * hand it a free pad below.
  */
+
+// carnival lettering for the canvas-painted signage (falls back to serif
+// offline — loadFonts resolves either way)
+await loadFonts();
 
 const world = new World(document.getElementById('app'));
 const input = new Input(world);
 const audio = new AudioManager(world.camera, world.scene);
 const grabbables = new Grabbables(world, input, audio);
 const locomotion = new Locomotion(world, input);
+const shadows = new BlobShadows(world);
+
+// bake the carnival-toned env map (one-off, ~ms) so every shiny material
+// built after this picks up real reflections
+initEnvironment(world.renderer);
 
 world.physics.boundsRadius = TENT_RADIUS - 0.2;
 
 const tent = new Tent(world);
 
 /** everything a booth needs, in one bag */
-const deps = { world, input, audio, grabbables, locomotion };
+const deps = { world, input, audio, grabbables, locomotion, shadows };
 
 // ---- live games (pads 0..5 ring the tent) -------------------------------
 const games = [

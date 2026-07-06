@@ -11,7 +11,9 @@ export default defineConfig({
   base: './',
   server: { port: 5173 },
   build: {
-    target: 'es2020',
+    // es2022 for top-level await (font preload before scene build); the
+    // Quest browser is an evergreen Chromium, comfortably past this.
+    target: 'es2022',
     // Keep three.js in one chunk; the app is small.
     chunkSizeWarningLimit: 1200,
   },

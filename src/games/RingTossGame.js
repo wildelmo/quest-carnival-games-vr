@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { MiniGame } from './registry.js';
 import { BoothBase } from '../components/BoothBase.js';
 import { CARNIVAL_PALETTE } from '../core/textures.js';
+import { shiny } from '../core/environment.js';
 
 /**
  * RING TOSS — the classic wall-to-wall field of glass soda bottles.
@@ -108,10 +109,11 @@ export class RingTossGame extends MiniGame {
     const fieldD = FIELD_MAX_Z - FIELD_MIN_Z;
     const centerZ = (FIELD_MIN_Z + FIELD_MAX_Z) / 2;
 
-    // low table the whole bottle field stands on
+    // low table the whole bottle field stands on — warm enough to read
+    // under the booth's own shade
     const table = new THREE.Mesh(
       new THREE.BoxGeometry(fieldW + 0.24, TABLE_Y, fieldD + 0.24),
-      new THREE.MeshLambertMaterial({ color: 0x54371f }),
+      new THREE.MeshLambertMaterial({ color: 0x77502c }),
     );
     table.position.set(0, TABLE_Y / 2, centerZ);
     g.add(table);
@@ -141,7 +143,7 @@ export class RingTossGame extends MiniGame {
     }
     const crates = new THREE.Mesh(
       mergeGeometries(walls),
-      new THREE.MeshLambertMaterial({ color: 0x8a5a33 }),
+      new THREE.MeshLambertMaterial({ color: 0x9c6c3f }),
     );
     g.add(crates);
   }
@@ -154,14 +156,16 @@ export class RingTossGame extends MiniGame {
       [0.016, 0.165], [0.0115, 0.185], [LIP_R, 0.205], [0.0125, BOTTLE_H],
     ].map(([r, y]) => new THREE.Vector2(r, y));
     const geo = new THREE.LatheGeometry(profile, 8);
-    const mat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+    // near-mirror roughness + env map = the whole field of glass GLINTS as
+    // you move your head, which is the making of this booth
+    const mat = shiny({ color: 0xffffff, roughness: 0.06, envIntensity: 1.35 });
     const mesh = new THREE.InstancedMesh(geo, mat, COLS * ROWS);
 
     const goldSet = new Set();
     while (goldSet.size < GOLD_COUNT) goldSet.add((Math.random() * COLS * ROWS) | 0);
 
-    const glass = new THREE.Color('#2e6e50');   // coke-bottle green
-    const glassAlt = new THREE.Color('#33607a'); // a few blue-glass bottles
+    const glass = new THREE.Color('#3f9268');   // coke-bottle green
+    const glassAlt = new THREE.Color('#4380a8'); // a few blue-glass bottles
     const gold = new THREE.Color('#ffd23f');
     let i = 0;
     for (let row = 0; row < ROWS; row++) {
@@ -195,7 +199,9 @@ export class RingTossGame extends MiniGame {
     // galvanised ring bucket on the counter
     const bucket = new THREE.Group();
     bucket.position.set(-0.35, h, 1.5);
-    const metal = new THREE.MeshLambertMaterial({ color: 0x9aa0b4, side: THREE.DoubleSide });
+    const metal = shiny({
+      color: 0xaab0c2, metalness: 0.75, roughness: 0.45, side: THREE.DoubleSide,
+    });
     const side = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.115, 0.13, 14, 1, true), metal);
     side.position.y = 0.065;
     const base = new THREE.Mesh(new THREE.CircleGeometry(0.115, 14), metal);
@@ -208,10 +214,12 @@ export class RingTossGame extends MiniGame {
     // 20 plastic rings piled inside in three loose stacks
     const ringGeo = new THREE.TorusGeometry(RING_R, TUBE_R, 6, 16);
     ringGeo.rotateX(Math.PI / 2); // lie flat: hole axis = Y
-    const ringMats = CARNIVAL_PALETTE.map(c => new THREE.MeshLambertMaterial({ color: c }));
+    // glossy injection-moulded plastic
+    const ringMats = CARNIVAL_PALETTE.map(c => shiny({ color: c, roughness: 0.18 }));
     for (let i = 0; i < RING_COUNT; i++) {
       const mesh = new THREE.Mesh(ringGeo, ringMats[(i * 3 + 2) % ringMats.length]);
       this.deps.world.scene.add(mesh);
+      this.deps.shadows?.track(mesh, { radius: RING_OUTER * 1.3, strength: 0.7 });
 
       const ring = {
         mesh, state: 'bucket', // bucket|held|flying|ringing|settling|returning|resting|ringed

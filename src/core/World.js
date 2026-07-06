@@ -11,6 +11,9 @@ export class World {
   constructor(container) {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x14060e);
+    // a whisper of warm haze: distant booths sit back in the atmosphere
+    // instead of floating in sterile air (barely visible at tent scale)
+    this.scene.fog = new THREE.FogExp2(0x1c0a10, 0.022);
 
     this.camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.05, 60);
     this.camera.position.set(0, 1.6, 0); // desktop eye height; XR overrides
@@ -24,6 +27,10 @@ export class World {
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.renderer.setSize(innerWidth, innerHeight);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    // filmic tone mapping is the single biggest "not a flat cartoon" win:
+    // highlights roll off instead of clipping, saturated colours keep depth
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.12;
     this.renderer.xr.enabled = true;
     this.renderer.xr.setFoveation(1); // strongest fixed foveation = big perf win on Quest
     container.appendChild(this.renderer.domElement);

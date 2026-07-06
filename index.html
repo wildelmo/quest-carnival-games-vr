@@ -4,47 +4,114 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Carnival Arcade VR</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎪</text></svg>">
   <style>
+    /* Self-hosted display faces (SIL OFL, via Google Fonts — see CREDITS.md):
+       'Rye' for circus signage, 'VT323' for LED scoreboards. Local files keep
+       the app offline-capable and are also drawn into WebGL canvas textures. */
+    @font-face {
+      font-family: 'Rye'; font-style: normal; font-weight: 400; font-display: swap;
+      src: url('./assets/fonts/rye-latin.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'VT323'; font-style: normal; font-weight: 400; font-display: swap;
+      src: url('./assets/fonts/vt323-latin.woff2') format('woff2');
+    }
     html, body { margin: 0; padding: 0; overflow: hidden; background: #14060e; height: 100%; }
     #app { position: fixed; inset: 0; }
-    /* Splash / help overlay shown until the player enters (VR or desktop) */
+
+    /* ---- splash / help overlay shown until the player enters ---- */
     #overlay {
       position: fixed; inset: 0; display: flex; flex-direction: column;
-      align-items: center; justify-content: center; z-index: 10;
-      background: radial-gradient(ellipse at center, #3a0f24 0%, #14060e 75%);
+      align-items: center; justify-content: center; z-index: 10; gap: 0;
       color: #ffe9c9; font-family: Georgia, 'Times New Roman', serif; text-align: center;
       transition: opacity .4s; user-select: none;
+      /* big-top canopy: striped wedges radiating from above the viewport,
+         pooled in warm lamplight and vignetted at the edges */
+      background:
+        radial-gradient(ellipse 120% 90% at 50% 0%, rgba(255, 190, 90, .18) 0%, rgba(20, 6, 14, 0) 55%),
+        radial-gradient(ellipse at center, rgba(20, 6, 14, .25) 0%, rgba(12, 3, 8, .93) 100%),
+        repeating-conic-gradient(from 0deg at 50% -12%, #6d1226 0deg 11deg, #2b1a14 11deg 22deg);
     }
     #overlay.hidden { opacity: 0; pointer-events: none; }
+
+    /* marquee bulb rows */
+    .bulbs { display: flex; gap: 22px; margin: 8px 0; }
+    .bulbs span {
+      width: 12px; height: 12px; border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #fffdf0, #ffd76a 55%, #b8862a);
+      box-shadow: 0 0 10px 2px rgba(255, 214, 106, .75);
+      animation: chase 1.2s infinite;
+      animation-delay: calc(var(--i) * .15s);
+    }
+    @keyframes chase {
+      0%, 100% { opacity: 1; box-shadow: 0 0 12px 3px rgba(255, 214, 106, .85); }
+      45% { opacity: .35; box-shadow: 0 0 3px 0 rgba(255, 214, 106, .25); }
+    }
+
     #overlay h1 {
-      font-size: clamp(28px, 6vw, 56px); margin: 0 0 6px;
-      color: #ffd23f; text-shadow: 0 0 18px #ff5d73, 0 3px 0 #7a1f33;
-      letter-spacing: 3px;
+      font-family: 'Rye', Georgia, serif; font-weight: 400;
+      font-size: clamp(30px, 6.5vw, 64px); margin: 2px 0 4px;
+      color: #ffd23f; letter-spacing: 2px;
+      text-shadow:
+        0 0 22px rgba(255, 93, 115, .8),
+        0 3px 0 #7a1f33,
+        0 6px 14px rgba(0, 0, 0, .8);
     }
-    #overlay p.sub { margin: 0 0 26px; font-style: italic; color: #ffb4c0; }
+    #overlay p.sub {
+      margin: 2px 0 20px; font-style: italic; color: #ffb4c0;
+      letter-spacing: .08em; font-size: clamp(13px, 2vw, 17px);
+      text-shadow: 0 2px 6px rgba(0,0,0,.7);
+    }
+
+    /* ticket-stub controls card */
     #overlay .controls {
-      background: rgba(0,0,0,.35); border: 1px solid #7a1f33; border-radius: 10px;
-      padding: 14px 22px; font-size: 14px; line-height: 1.7; max-width: 560px;
-      font-family: ui-monospace, Menlo, Consolas, monospace; text-align: left;
+      position: relative;
+      background: linear-gradient(175deg, #f9efdb, #eadbba);
+      color: #4a2c1a; border-radius: 6px;
+      padding: 16px 26px; font-size: 13.5px; line-height: 1.75; max-width: 580px;
+      font-family: Georgia, serif; text-align: left;
+      border: 1px solid #c9b284;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, .55), inset 0 0 0 4px rgba(122, 31, 51, .12);
     }
-    #overlay .controls b { color: #ffd23f; }
-    #buttons { display: flex; justify-content: center; margin: 22px 0 12px; }
-    #buttons-secondary { display: flex; justify-content: center; margin: 0 0 18px; }
+    #overlay .controls::before {
+      content: 'ADMIT ONE · HOW TO PLAY · ADMIT ONE';
+      display: block; text-align: center;
+      font-family: 'Rye', Georgia, serif; font-size: 12px; letter-spacing: .22em;
+      color: #a3173a; border-bottom: 2px dashed rgba(122, 31, 51, .45);
+      padding-bottom: 8px; margin-bottom: 10px;
+    }
+    #overlay .controls b { color: #a3173a; letter-spacing: .05em; }
+
+    #buttons { display: flex; justify-content: center; margin: 24px 0 10px; }
+    #buttons-secondary { display: flex; justify-content: center; margin: 0 0 16px; }
+
     /* the one big button that matters — START VR */
     #btn-vr {
-      font: 600 2rem Georgia, serif; letter-spacing: .12em; text-transform: uppercase;
-      cursor: pointer; padding: 22px 72px; border-radius: 16px;
-      border: 2px solid rgba(140, 255, 165, .8); color: #f4fff6; text-shadow: 0 1px 2px rgba(0,0,0,.35);
-      background: linear-gradient(180deg, #3ad866, #159a3e);
-      box-shadow: 0 0 38px rgba(60, 220, 100, .5), inset 0 1px 0 rgba(255, 255, 255, .3);
+      font-family: 'Rye', Georgia, serif; font-weight: 400; font-size: 1.9rem;
+      letter-spacing: .1em; text-transform: uppercase;
+      cursor: pointer; padding: 20px 70px; border-radius: 14px;
+      border: 3px solid #e9c14f; color: #f4fff6;
+      text-shadow: 0 2px 3px rgba(0, 0, 0, .45);
+      background: linear-gradient(180deg, #3ad866, #128a37);
+      box-shadow:
+        0 0 34px rgba(60, 220, 100, .45),
+        0 8px 20px rgba(0, 0, 0, .5),
+        inset 0 2px 0 rgba(255, 255, 255, .35),
+        inset 0 -8px 16px rgba(0, 60, 20, .45);
       transition: all .2s ease;
+      animation: beckon 2.6s ease-in-out infinite;
+    }
+    @keyframes beckon {
+      0%, 100% { box-shadow: 0 0 26px rgba(60, 220, 100, .35), 0 8px 20px rgba(0,0,0,.5), inset 0 2px 0 rgba(255,255,255,.35), inset 0 -8px 16px rgba(0,60,20,.45); }
+      50% { box-shadow: 0 0 48px rgba(80, 240, 120, .65), 0 8px 20px rgba(0,0,0,.5), inset 0 2px 0 rgba(255,255,255,.35), inset 0 -8px 16px rgba(0,60,20,.45); }
     }
     #btn-vr:hover:not(:disabled) {
-      background: linear-gradient(180deg, rgba(70, 225, 110, .98), rgba(30, 160, 65, .98));
-      box-shadow: 0 0 50px rgba(80, 240, 120, .6), inset 0 1px 0 rgba(255, 255, 255, .3);
+      background: linear-gradient(180deg, #46e170, #17a341);
       transform: translateY(-2px) scale(1.02);
     }
-    #btn-vr:disabled { opacity: .5; cursor: default; filter: saturate(.4); }
+    #btn-vr:disabled { opacity: .5; cursor: default; filter: saturate(.4); animation: none; }
+
     /* quiet, de-emphasized — desktop is really just for testing on a computer */
     #btn-desktop {
       font: .85rem Georgia, serif; letter-spacing: .05em; cursor: pointer;
@@ -56,7 +123,12 @@
       color: #ffe9c9; border-color: rgba(220, 180, 140, .6); background: rgba(190, 110, 60, .14);
     }
     #btn-desktop:disabled { opacity: .4; cursor: default; }
-    #loading { font-size: 13px; color: #d98d9d; min-height: 18px; }
+    #loading { font-size: 13px; color: #d98d9d; min-height: 18px; text-shadow: 0 1px 4px rgba(0,0,0,.6); }
+    #footer {
+      margin-top: 14px; font-size: 11px; letter-spacing: .18em;
+      color: rgba(255, 233, 201, .4); text-transform: uppercase;
+    }
+
     /* Desktop crosshair */
     #crosshair {
       position: fixed; left: 50%; top: 50%; width: 10px; height: 10px; z-index: 5;
@@ -70,8 +142,18 @@
   <div id="app"></div>
   <div id="crosshair"></div>
   <div id="overlay">
+    <div class="bulbs" aria-hidden="true">
+      <span style="--i:0"></span><span style="--i:1"></span><span style="--i:2"></span>
+      <span style="--i:3"></span><span style="--i:4"></span><span style="--i:5"></span>
+      <span style="--i:6"></span><span style="--i:7"></span><span style="--i:8"></span>
+    </div>
     <h1>&#127914; CARNIVAL ARCADE &#127914;</h1>
     <p class="sub">step right up — everyone's a winner!</p>
+    <div class="bulbs" aria-hidden="true">
+      <span style="--i:8"></span><span style="--i:7"></span><span style="--i:6"></span>
+      <span style="--i:5"></span><span style="--i:4"></span><span style="--i:3"></span>
+      <span style="--i:2"></span><span style="--i:1"></span><span style="--i:0"></span>
+    </div>
     <div id="buttons">
       <button id="btn-vr" disabled>START VR</button>
     </div>
@@ -87,6 +169,7 @@
       <div style="margin-top:8px"><b>DESKTOP</b> &nbsp;WASD move &middot; mouse look &middot; click: grab, click again: throw</div>
       <div>E: press buttons &middot; Esc: release mouse</div>
     </div>
+    <div id="footer">WebXR &middot; Meta Quest &middot; three.js</div>
   </div>
   <script type="module" src="/src/main.js"></script>
 </body>

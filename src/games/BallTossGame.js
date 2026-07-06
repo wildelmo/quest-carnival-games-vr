@@ -4,6 +4,7 @@ import { MiniGame } from './registry.js';
 import { BoothBase } from '../components/BoothBase.js';
 import { BoxCollider, ForceZone, SphereBody } from '../core/Physics.js';
 import { CARNIVAL_PALETTE } from '../core/textures.js';
+import { shiny } from '../core/environment.js';
 
 /**
  * DOWN THE CLOWN — knock down the wall of plush clown dolls (5 wide,
@@ -150,7 +151,7 @@ export class BallTossGame extends MiniGame {
     const g = this.booth.group;
     const { physics } = this.deps.world;
     const shelfTopMat = new THREE.MeshLambertMaterial({ color: 0xf2e6cd }); // cream boards
-    const fasciaMat = new THREE.MeshLambertMaterial({ color: 0xc2183c });  // red shelf lips
+    const fasciaMat = shiny({ color: 0xc2183c, roughness: 0.28 });          // lacquered red lips
     const clownGeo = BallTossGame.#buildClownGeometry();
     const clownMat = new THREE.MeshLambertMaterial({ vertexColors: true });
 
@@ -270,7 +271,7 @@ export class BallTossGame extends MiniGame {
     // pours balls back INTO the tray. Its mouth sits just above the tray's
     // left interior, angled down toward the middle so returned balls settle in
     // the tray rather than beside it.
-    const metalMat = new THREE.MeshLambertMaterial({ color: 0x9aa0b4 });
+    const metalMat = shiny({ color: 0xaab0c2, metalness: 0.75, roughness: 0.42 });
     const mouthLocal = new THREE.Vector3(0.02, h + 0.22, 1.5);
     // upright feeder housing behind the tray's left corner
     const housing = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.34, 0.16), metalMat);
@@ -339,17 +340,19 @@ export class BallTossGame extends MiniGame {
 
   #spawnBalls(grabbables, audio, world) {
     const ballGeo = new THREE.SphereGeometry(BALL_RADIUS, 14, 10);
+    const seamMat = shiny({ color: 0xf6f2ea, roughness: 0.5 });
     for (let i = 0; i < BALL_COUNT; i++) {
       const color = CARNIVAL_PALETTE[i % CARNIVAL_PALETTE.length];
-      const mesh = new THREE.Mesh(ballGeo, new THREE.MeshLambertMaterial({ color }));
+      // satin rubber sheen — matte enough to read as foam, glossy enough
+      // to catch a highlight in flight
+      const mesh = new THREE.Mesh(ballGeo, shiny({ color, roughness: 0.38 }));
       // seam ring makes the rolling visible
       const seam = new THREE.Mesh(
-        new THREE.TorusGeometry(BALL_RADIUS, 0.006, 6, 18),
-        new THREE.MeshLambertMaterial({ color: 0xffffff }),
-      );
+        new THREE.TorusGeometry(BALL_RADIUS, 0.006, 6, 18), seamMat);
       seam.rotation.x = Math.PI / 2.6;
       mesh.add(seam);
       world.scene.add(mesh);
+      this.deps.shadows?.track(mesh, { radius: BALL_RADIUS * 1.5, strength: 0.85 });
 
       const body = new SphereBody(mesh, BALL_RADIUS, {
         restitution: 0.62, rollFriction: 0.7, tag: 'ball',
