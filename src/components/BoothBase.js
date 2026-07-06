@@ -183,13 +183,24 @@ export class BoothBase {
     }
   }
 
-  /** Keep the player out of the booth interior (world-space AABB approx). */
+  /**
+   * Keep the player out of the booth interior. The blocker is an ORIENTED
+   * rectangle matching the stall's real footprint (back wall through the
+   * counter's front lip) — a world AABB around a rotated booth would bulge
+   * far into the walkway and read as an invisible wall.
+   */
   #addBlockers(locomotion) {
     if (!locomotion) return;
-    const box = new THREE.Box3().setFromObject(this.counter);
-    // expand to cover the whole stall footprint
-    const full = new THREE.Box3().setFromObject(this.backWall).union(box);
-    locomotion.addBlocker(full.min.x - 0.15, full.max.x + 0.15, full.min.z - 0.15, full.max.z + 0.15);
+    this.group.updateWorldMatrix(true, false);
+    // footprint in booth-local space: x ±w/2, z from -d/2 (back wall) to
+    // d/2 + 0.25 (counter front face), plus a small comfort margin
+    const centre = this.group.localToWorld(new THREE.Vector3(0, 0, 0.125));
+    locomotion.addBlocker(
+      centre.x, centre.z,
+      this.width / 2 + 0.1,
+      this.depth / 2 + 0.225,
+      this.group.rotation.y,
+    );
   }
 }
 

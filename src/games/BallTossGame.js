@@ -6,8 +6,8 @@ import { BoxCollider, ForceZone, SphereBody } from '../core/Physics.js';
 import { CARNIVAL_PALETTE } from '../core/textures.js';
 
 /**
- * DOWN THE CLOWN — knock down the 5x5 wall of plush clown dolls,
- * boardwalk / Dave & Buster's style.
+ * DOWN THE CLOWN — knock down the wall of plush clown dolls (5 wide,
+ * 4 shelves high), boardwalk / Dave & Buster's style.
  *
  * A chute dispenses six foam softballs into a counter tray. Throw them at
  * the shelves of plush clowns; solid hits knock dolls backwards on their
@@ -15,18 +15,20 @@ import { CARNIVAL_PALETTE } from '../core/textures.js';
  * get swept to a grate at the base of the wall by the sloped floor (a
  * force zone), ride a return pipe, and pop back out into the tray.
  *
- * Rows score 10/20/30/40/50 bottom→top. Clearing all 25 ends the round
- * early with a +150 bonus and a fanfare.
+ * Rows score 10/20/30/40 bottom→top. Clearing the whole wall ends the
+ * round early with a +150 bonus and a fanfare.
  *
  * Each clown is ONE mesh: all its parts (body, ruff, head, hair, face)
- * are merged into a single vertex-coloured geometry shared by all 25
- * dolls, so the whole wall costs 25 draw calls.
+ * are merged into a single vertex-coloured geometry shared by every
+ * doll, so the whole wall costs 20 draw calls.
  */
 
 const BALL_COUNT = 6;
 const BALL_RADIUS = 0.062;
-const GRID = 5;
-const KNOCK_SPEED = 1.9;      // m/s impact needed to knock a target down
+const COLS = 5;
+const ROWS = 4;               // 4 rows leaves real headroom between shelves
+const ROW_SPACING = 0.36;     // dolls are ~0.27 tall; ~6cm of air above each
+const KNOCK_SPEED = 1.5;      // m/s impact needed to knock a target down
 const DOWN_ANGLE = -1.72;     // radians the pivot falls back to
 const CLEAR_BONUS = 150;
 
@@ -135,7 +137,7 @@ export class BallTossGame extends MiniGame {
     return merged;
   }
 
-  /** 5x5 plush clowns on chunky cream-and-red shelf rows, hinged at the base */
+  /** plush clowns on chunky cream-and-red shelf rows, hinged at the base */
   #buildTargets() {
     const g = this.booth.group;
     const { physics } = this.deps.world;
@@ -144,9 +146,9 @@ export class BallTossGame extends MiniGame {
     const clownGeo = BallTossGame.#buildClownGeometry();
     const clownMat = new THREE.MeshLambertMaterial({ vertexColors: true });
 
-    for (let row = 0; row < GRID; row++) {
+    for (let row = 0; row < ROWS; row++) {
       // rows sit just above the counter and stop below the prize shelf
-      const shelfY = 0.98 + row * 0.29;
+      const shelfY = 0.98 + row * ROW_SPACING;
       // shelf: cream board (visual + collider so balls ricochet off ledges)
       // with a red fascia strip along the front edge, like the real cabinet
       const shelf = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.03, 0.3), shelfTopMat);
@@ -156,7 +158,7 @@ export class BallTossGame extends MiniGame {
       g.add(shelf, fascia);
       physics.colliderFromMesh(shelf, new THREE.Vector3(2.4, 0.03, 0.3), { restitution: 0.3, tag: 'wood' });
 
-      for (let col = 0; col < GRID; col++) {
+      for (let col = 0; col < COLS; col++) {
         const x = -0.84 + col * 0.42;
 
         const root = new THREE.Group();          // hinge point on the shelf
@@ -210,7 +212,7 @@ export class BallTossGame extends MiniGame {
       audio.play('fall', { at: target.worldPos, volume: 0.7, rate: 1.1 });
       if (this.state === 'running') {
         this.addScore(target.points, target.worldPos);
-        if (this._downCount >= GRID * GRID) {
+        if (this._downCount >= ROWS * COLS) {
           this.score += CLEAR_BONUS;
           this.endRound('cleared');
         }
@@ -328,6 +330,7 @@ export class BallTossGame extends MiniGame {
 
       const body = new SphereBody(mesh, BALL_RADIUS, {
         restitution: 0.62, rollFriction: 0.7, tag: 'ball',
+        gravityScale: 0.8, // light foam — flies flatter, much easier to aim
       });
       world.physics.addBody(body);
       // impact noises, rate-limited per ball
@@ -342,7 +345,8 @@ export class BallTossGame extends MiniGame {
       const ball = {
         mesh, body,
         roll: audio.createRollLoop(mesh),
-        grab: grabbables.add(mesh, { radius: BALL_RADIUS + 0.03, body }),
+        // generous throw assist: a relaxed flick should reach the top shelf
+        grab: grabbables.add(mesh, { radius: BALL_RADIUS + 0.03, body, throwBoost: 1.6 }),
       };
       this.balls.push(ball);
       // start life resting in the tray

@@ -34,6 +34,8 @@ export class SphereBody {
     this.friction = opts.friction ?? 0.25;       // tangential damping on bounce
     this.rollFriction = opts.rollFriction ?? 0.6; // decel (m/s^2) while rolling
     this.linearDamping = opts.linearDamping ?? 0.02;
+    /** <1 = lighter than real (foam balls fly flatter, easier to aim) */
+    this.gravityScale = opts.gravityScale ?? 1;
     this.enabled = true;      // false while held in a hand
     this.asleep = false;
     this._stillTime = 0;
@@ -173,7 +175,7 @@ export class Physics {
 
   #integrate(body, dt) {
     const v = body.velocity;
-    v.y += this.gravity * dt;
+    v.y += this.gravity * body.gravityScale * dt;
     v.multiplyScalar(1 - body.linearDamping * dt);
 
     // force zones
