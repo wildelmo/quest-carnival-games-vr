@@ -89,8 +89,14 @@ export function woodTexture(base = '#8a5a33') {
   return toTexture(c, 6, 6);
 }
 
-/** Painted booth sign with bold lettering + light-bulb border dots. */
-export function signTexture(text, { bg = '#1d2a63', fg = '#ffd23f', accent = '#ff5d73', sub = '' } = {}) {
+/**
+ * Painted booth sign with bold lettering + light-bulb border dots.
+ * `rainbow: true` draws each letter in a different candy colour along a
+ * gentle arch — the classic boardwalk "DOWN THE CLOWN" marquee look.
+ */
+export function signTexture(text, {
+  bg = '#1d2a63', fg = '#ffd23f', accent = '#ff5d73', sub = '', rainbow = false,
+} = {}) {
   const [c, ctx] = makeCanvas(1024, 256);
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, 1024, 256);
@@ -105,14 +111,38 @@ export function signTexture(text, { bg = '#1d2a63', fg = '#ffd23f', accent = '#f
       ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2); ctx.fill();
     }
   }
-  // main text with drop shadow
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = `bold ${sub ? 108 : 128}px Georgia, serif`;
-  ctx.fillStyle = 'rgba(0,0,0,0.55)';
-  ctx.fillText(text, 517, sub ? 108 : 134);
-  ctx.fillStyle = fg;
-  ctx.fillText(text, 512, sub ? 102 : 128);
+  const mainY = sub ? 102 : 128;
+  if (rainbow) {
+    // per-letter colours on a shallow arch, slight per-letter tilt
+    const letterColors = ['#ff3b30', '#ff9500', '#ffd23f', '#7ac74f', '#3aa0ff', '#b14fc9'];
+    const size = sub ? 104 : 122;
+    ctx.font = `bold ${size}px Georgia, serif`;
+    const widths = [...text].map(ch => ctx.measureText(ch).width);
+    const total = widths.reduce((a, b) => a + b, 0);
+    let x = 512 - total / 2;
+    [...text].forEach((ch, i) => {
+      const cx = x + widths[i] / 2;
+      const t = (cx - 512) / (total / 2 || 1);      // -1..1 across the word
+      const y = mainY + 26 * t * t - 10;             // arch: ends dip down
+      ctx.save();
+      ctx.translate(cx, y);
+      ctx.rotate(t * 0.12);
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillText(ch, 4, 6);
+      ctx.fillStyle = ch === ' ' ? 'transparent' : letterColors[i % letterColors.length];
+      ctx.fillText(ch, 0, 0);
+      ctx.restore();
+      x += widths[i];
+    });
+  } else {
+    ctx.font = `bold ${sub ? 108 : 128}px Georgia, serif`;
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillText(text, 517, mainY + 6);
+    ctx.fillStyle = fg;
+    ctx.fillText(text, 512, mainY);
+  }
   if (sub) {
     ctx.font = 'italic 44px Georgia, serif';
     ctx.fillStyle = '#ffe9c9';

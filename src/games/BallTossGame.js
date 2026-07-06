@@ -1,20 +1,26 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { MiniGame } from './registry.js';
 import { BoothBase } from '../components/BoothBase.js';
 import { BoxCollider, ForceZone, SphereBody } from '../core/Physics.js';
-import { targetFaceTexture, randomTargetKind, CARNIVAL_PALETTE } from '../core/textures.js';
+import { CARNIVAL_PALETTE } from '../core/textures.js';
 
 /**
- * BALL TOSS — knock down the 5x5 wall of plush targets.
+ * DOWN THE CLOWN — knock down the 5x5 wall of plush clown dolls,
+ * boardwalk / Dave & Buster's style.
  *
  * A chute dispenses six foam softballs into a counter tray. Throw them at
- * the target wall; solid hits knock targets backwards on their hinges,
- * glancing hits make them wobble. Balls bounce around the booth, get swept
- * to a grate at the base of the wall by the sloped floor (a force zone),
- * ride a return pipe, and pop back out into the tray.
+ * the shelves of plush clowns; solid hits knock dolls backwards on their
+ * hinges, glancing hits make them wobble. Balls bounce around the booth,
+ * get swept to a grate at the base of the wall by the sloped floor (a
+ * force zone), ride a return pipe, and pop back out into the tray.
  *
  * Rows score 10/20/30/40/50 bottom→top. Clearing all 25 ends the round
  * early with a +150 bonus and a fanfare.
+ *
+ * Each clown is ONE mesh: all its parts (body, ruff, head, hair, face)
+ * are merged into a single vertex-coloured geometry shared by all 25
+ * dolls, so the whole wall costs 25 draw calls.
  */
 
 const BALL_COUNT = 6;
@@ -33,10 +39,12 @@ export class BallTossGame extends MiniGame {
     const { world, audio, grabbables } = deps;
 
     this.booth = new BoothBase(deps, {
-      name: 'BALL TOSS',
+      name: 'DOWN THE CLOWN',
+      scoreboardTitle: 'DOWN THE CLOWN',
       width: 4, depth: 3, pad,
       colorA: '#c2183c', colorB: '#f6ead7',
-      signColors: { bg: '#1d2a63', fg: '#ffd23f' },
+      signColors: { bg: '#2a0f38', rainbow: true, sub: '6 BALLS · KNOCK EM ALL DOWN!' },
+      shelfY: 2.46, // prize shelf clears the top clown row
       onStart: () => this.tryStart(),
     });
     const g = this.booth.group;
@@ -84,44 +92,88 @@ export class BallTossGame extends MiniGame {
     }
   }
 
-  /** 5x5 plush faces on shelf rows, hinged at the base */
+  /**
+   * One merged, vertex-coloured plush-clown geometry: white pear body,
+   * yellow ruffled dress + collar, white head with orange hair puffs,
+   * blue nose, bead eyes, red grin, yellow pom on top. Base sits at y=0
+   * (the hinge line), face looks down +Z at the player.
+   */
+  static #buildClownGeometry() {
+    const paint = (geo, hex) => {
+      const c = new THREE.Color(hex).convertSRGBToLinear();
+      const n = geo.attributes.position.count;
+      const colors = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) colors.set([c.r, c.g, c.b], i * 3);
+      geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      geo.deleteAttribute('uv'); // mergeGeometries wants matching attributes
+      return geo;
+    };
+    const PLUSH = '#ffffff', YELLOW = '#ffd23f', HAIR = '#ff6a2a';
+    const parts = [
+      // yellow dress skirt with white chest and arms above — mostly-white
+      // doll with a yellow band, like the real boardwalk plush
+      paint(new THREE.ConeGeometry(0.1, 0.13, 11), YELLOW).translate(0, 0.085, 0),
+      paint(new THREE.SphereGeometry(0.06, 10, 8), PLUSH)
+        .scale(1, 1.15, 0.85).translate(0, 0.16, 0),
+      paint(new THREE.SphereGeometry(0.028, 7, 5), PLUSH).translate(-0.078, 0.14, 0),
+      paint(new THREE.SphereGeometry(0.028, 7, 5), PLUSH).translate(0.078, 0.14, 0),
+      // head
+      paint(new THREE.SphereGeometry(0.058, 10, 8), PLUSH).translate(0, 0.235, 0),
+      // hair puffs
+      paint(new THREE.SphereGeometry(0.03, 7, 5), HAIR).translate(-0.056, 0.248, 0),
+      paint(new THREE.SphereGeometry(0.03, 7, 5), HAIR).translate(0.056, 0.248, 0),
+      // face: blue nose, bead eyes, red grin
+      paint(new THREE.SphereGeometry(0.017, 7, 5), '#3a6bff').translate(0, 0.235, 0.05),
+      paint(new THREE.SphereGeometry(0.009, 5, 4), '#1b1b1b').translate(-0.022, 0.256, 0.046),
+      paint(new THREE.SphereGeometry(0.009, 5, 4), '#1b1b1b').translate(0.022, 0.256, 0.046),
+      paint(new THREE.SphereGeometry(1, 8, 5), '#d4302f')
+        .scale(0.028, 0.011, 0.009).translate(0, 0.207, 0.048),
+    ];
+    const merged = mergeGeometries(parts);
+    // squat plush proportions; height stays clear of the shelf above
+    merged.scale(1.14, 0.93, 0.93);
+    return merged;
+  }
+
+  /** 5x5 plush clowns on chunky cream-and-red shelf rows, hinged at the base */
   #buildTargets() {
     const g = this.booth.group;
-    const shelfMat = new THREE.MeshLambertMaterial({ color: 0x54371f });
-    const plateGeo = new THREE.BoxGeometry(0.24, 0.26, 0.035);
-    const faceGeo = new THREE.CircleGeometry(0.125, 20);
     const { physics } = this.deps.world;
+    const shelfTopMat = new THREE.MeshLambertMaterial({ color: 0xf2e6cd }); // cream boards
+    const fasciaMat = new THREE.MeshLambertMaterial({ color: 0xc2183c });  // red shelf lips
+    const clownGeo = BallTossGame.#buildClownGeometry();
+    const clownMat = new THREE.MeshLambertMaterial({ vertexColors: true });
 
     for (let row = 0; row < GRID; row++) {
-      const shelfY = 1.12 + row * 0.3;
-      // shelf board (visual + collider so balls ricochet off ledges)
-      const shelf = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.03, 0.3), shelfMat);
+      // rows sit just above the counter and stop below the prize shelf
+      const shelfY = 0.98 + row * 0.29;
+      // shelf: cream board (visual + collider so balls ricochet off ledges)
+      // with a red fascia strip along the front edge, like the real cabinet
+      const shelf = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.03, 0.3), shelfTopMat);
       shelf.position.set(0, shelfY - 0.016, -1.05);
-      g.add(shelf);
+      const fascia = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.09, 0.02), fasciaMat);
+      fascia.position.set(0, shelfY - 0.06, -0.89);
+      g.add(shelf, fascia);
       physics.colliderFromMesh(shelf, new THREE.Vector3(2.4, 0.03, 0.3), { restitution: 0.3, tag: 'wood' });
 
       for (let col = 0; col < GRID; col++) {
         const x = -0.84 + col * 0.42;
-        const kind = randomTargetKind(row * GRID + col);
-        const tint = '#' + new THREE.Color(CARNIVAL_PALETTE[(row + col * 3) % CARNIVAL_PALETTE.length]).getHexString();
 
         const root = new THREE.Group();          // hinge point on the shelf
         root.position.set(x, shelfY, -1.05);
         const pivot = new THREE.Group();          // rotates backwards when hit
         root.add(pivot);
-        const plate = new THREE.Mesh(plateGeo, new THREE.MeshLambertMaterial({ color: tint }));
-        plate.position.y = 0.13;
-        const face = new THREE.Mesh(faceGeo,
-          new THREE.MeshLambertMaterial({ map: targetFaceTexture(kind, tint) }));
-        face.position.set(0, 0.13, 0.019);
-        pivot.add(plate, face);
+        const doll = new THREE.Mesh(clownGeo, clownMat);
+        pivot.add(doll);
         g.add(root);
 
-        // world-space collider matching the standing plate
+        // world-space collider wrapping the standing doll
         root.updateWorldMatrix(true, true);
-        const collider = physics.colliderFromMesh(plate, new THREE.Vector3(0.24, 0.26, 0.05), {
-          restitution: 0.25, tag: 'target',
-        });
+        const center = root.localToWorld(new THREE.Vector3(0, 0.135, 0));
+        const collider = physics.addCollider(new BoxCollider(
+          center, new THREE.Vector3(0.115, 0.135, 0.05), this._worldQuat,
+          { restitution: 0.25, tag: 'target' },
+        ));
 
         const target = {
           pivot, collider, row,
@@ -130,17 +182,17 @@ export class BallTossGame extends MiniGame {
           wobble: 0, wobbleVel: 0,
           downTime: 0,
           points: 10 + row * 10,
-          worldPos: plate.getWorldPosition(new THREE.Vector3()),
+          worldPos: center.clone(),
         };
         collider.onHit = (body, impact) => this.#onTargetHit(target, impact);
         this.targets.push(target);
       }
     }
 
-    // backboard behind the targets keeps balls from wedging behind shelves
+    // cream beadboard backing keeps balls from wedging behind the shelves
     const backboard = new THREE.Mesh(
       new THREE.PlaneGeometry(2.6, 1.9),
-      new THREE.MeshLambertMaterial({ color: 0x24122e }),
+      new THREE.MeshLambertMaterial({ color: 0xd9c9a8 }),
     );
     backboard.position.set(0, 1.85, -1.32);
     this.booth.group.add(backboard);
