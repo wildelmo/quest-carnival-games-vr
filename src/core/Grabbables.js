@@ -32,6 +32,8 @@ export class Grabbable {
     // pose of the object relative to the hand while held (darts point forward)
     this.holdPosition = opts.holdPosition ?? new THREE.Vector3(0, 0, -0.03);
     this.holdQuaternion = opts.holdQuaternion ?? new THREE.Quaternion();
+    /** throw assist multiplier — casual flicks should still reach the targets */
+    this.throwBoost = opts.throwBoost ?? 1.3;
     this.onGrab = opts.onGrab ?? null;
     /** (velocity: Vector3, hand) — called on release for bodiless objects */
     this.onThrow = opts.onThrow ?? null;
@@ -138,6 +140,7 @@ export class Grabbables {
       _v1.y += 1.2;
     } else {
       hand.computeThrowVelocity(_v1);
+      _v1.multiplyScalar(g.throwBoost);
     }
 
     if (g.body) {

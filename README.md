@@ -10,11 +10,11 @@ teleport between.
 **Playable now:**
 
 - **🎯 Down the Clown (ball toss)** — a chute dispenses six foam softballs into your tray.
-  Knock down the 5×5 wall of plush carnival clowns before the
-  timer runs out. Targets wobble on glancing hits and slam backwards on
+  Knock down the wall of plush carnival clowns (5 wide, 4 shelves) before
+  the timer runs out. Targets wobble on glancing hits and slam backwards on
   solid ones; balls bounce around the stall, get swept into the grate at
   the base of the wall and ride the return pipe back to your tray.
-  Rows score 10–50, clear the board for a bonus.
+  Rows score 10–40, clear the board for a bonus.
 - **🎈 Balloon Darts** — a 6ft × 5ft cork board packed with 35 jiggling
   balloons (three gold ones are worth extra). Throw darts, pop balloons
   (shards, real pop sound), darts stick in the cork. Hit the big red

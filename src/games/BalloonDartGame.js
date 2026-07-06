@@ -37,8 +37,9 @@ const _v2 = new THREE.Vector3();
 const _v3 = new THREE.Vector3();
 const _m1 = new THREE.Matrix4();
 const _c1 = new THREE.Color();
-// racked darts stand needle-down: rotate model -Z (nose) to point at the floor
-const _qTipDown = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0));
+// racked darts stand needle-down in the foam, flights up: rotating about X
+// by -90° sends the model's -Z nose to -Y (straight down)
+const _qTipDown = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
 
 export class BalloonDartGame extends MiniGame {
   constructor(deps, pad) {
@@ -171,26 +172,42 @@ export class BalloonDartGame extends MiniGame {
     block.position.set(-0.4, h + 0.045, 1.42);
     g.add(block);
 
-    const bodyGeo = new THREE.CylinderGeometry(0.008, 0.008, 0.085, 8);
-    const tipGeo = new THREE.CylinderGeometry(0.0015, 0.004, 0.05, 6);
-    const flightGeo = new THREE.PlaneGeometry(0.045, 0.05);
+    // Proper dart anatomy, modelled pointing along -Z (three.js "forward"):
+    // steel needle -> colored metal barrel (where you grip) -> thin dark
+    // shaft -> kite-shaped flights crossed in an X at the tail.
+    const needleGeo = new THREE.ConeGeometry(0.0035, 0.05, 8);
+    needleGeo.rotateX(-Math.PI / 2);                    // apex points -Z
+    const barrelGeo = new THREE.CylinderGeometry(0.0065, 0.0065, 0.055, 10);
+    barrelGeo.rotateX(Math.PI / 2);                     // axis along Z
+    const shaftGeo = new THREE.CylinderGeometry(0.0035, 0.0035, 0.055, 8);
+    shaftGeo.rotateX(Math.PI / 2);
+    // one kite-shaped flight blade in the YZ plane (contains the shaft axis);
+    // a second copy rotated 90° around Z completes the classic X of fins
+    const flightGeo = new THREE.BufferGeometry();
+    flightGeo.setAttribute('position', new THREE.Float32BufferAttribute([
+      0, 0, 0.045,        // leading point on the shaft
+      0, 0.024, 0.07,     // upper tip
+      0, 0, 0.092,        // trailing point on the shaft
+      0, -0.024, 0.07,    // lower tip
+    ], 3));
+    flightGeo.setIndex([0, 1, 2, 0, 2, 3]);
+    flightGeo.computeVertexNormals();
     const steelMat = new THREE.MeshLambertMaterial({ color: 0xc7ccd8 });
+    const shaftMat = new THREE.MeshLambertMaterial({ color: 0x2a2a35 });
 
     for (let i = 0; i < DART_COUNT; i++) {
       const color = CARNIVAL_PALETTE[(i * 2 + 1) % CARNIVAL_PALETTE.length];
-      const mat = new THREE.MeshLambertMaterial({ color });
       const dart = new THREE.Group();
-      // dart is modelled pointing along -Z (three.js "forward")
-      const body = new THREE.Mesh(bodyGeo, mat);
-      body.rotation.x = Math.PI / 2;
-      const tip = new THREE.Mesh(tipGeo, steelMat);
-      tip.rotation.x = Math.PI / 2;
-      tip.position.z = -0.065;
+      const needle = new THREE.Mesh(needleGeo, steelMat);
+      needle.position.z = -0.075;                       // tip ends at z=-0.1
+      const barrel = new THREE.Mesh(barrelGeo, new THREE.MeshLambertMaterial({ color }));
+      barrel.position.z = -0.022;
+      const shaft = new THREE.Mesh(shaftGeo, shaftMat);
+      shaft.position.z = 0.033;
       const f1 = new THREE.Mesh(flightGeo, new THREE.MeshLambertMaterial({ color, side: THREE.DoubleSide }));
-      f1.position.z = 0.055;
       const f2 = f1.clone();
       f2.rotation.z = Math.PI / 2;
-      dart.add(body, tip, f1, f2);
+      dart.add(needle, barrel, shaft, f1, f2);
       this.deps.world.scene.add(dart);
 
       const rackPosLocal = new THREE.Vector3(-0.4 - 0.22 + i * 0.09, h + 0.13, 1.42);
@@ -205,6 +222,7 @@ export class BalloonDartGame extends MiniGame {
       };
       d.grab = this.deps.grabbables.add(dart, {
         radius: 0.075,
+        throwBoost: 1.45, // darts are precise, not powerful — help them along
         // hold the dart tilted slightly up, like you'd actually grip one
         holdPosition: new THREE.Vector3(0, 0.01, -0.06),
         holdQuaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.5, 0, 0)),
@@ -358,9 +376,11 @@ export class BalloonDartGame extends MiniGame {
           d.prevPos.copy(d.mesh.position);
           d.velocity.y += DART_GRAVITY * dt;
           d.mesh.position.addScaledVector(d.velocity, dt);
-          // nose follows the velocity vector
+          // nose follows the velocity vector. lookAt() points an object's
+          // +Z at the target, and the nose is modelled on -Z — so look at
+          // a point BEHIND the dart to make the needle lead.
           _v1.copy(d.velocity).normalize();
-          _v2.copy(d.mesh.position).add(_v1);
+          _v2.copy(d.mesh.position).sub(_v1);
           d.mesh.lookAt(_v2);
           this.#sweepDart(d);
           // out of bounds / floor
@@ -419,8 +439,9 @@ export class BalloonDartGame extends MiniGame {
           d.state = 'stuck';
           d.stickWobble = 0.3;
           d.rerackAt = this._now + RERACK_DELAY;
-          // park the dart embedded at the hit point, keeping its heading
-          _v3.z = FACE + 0.015;
+          // park the dart with ~2cm of needle in the cork (the nose reaches
+          // 0.1 ahead of the origin), keeping its flight heading
+          _v3.z = FACE + 0.08;
           d.mesh.position.copy(this.board.localToWorld(_v3.clone()));
           this.deps.audio.play('dartStick', { at: d.mesh, volume: 0.55, rate: 1.5 });
         } else {

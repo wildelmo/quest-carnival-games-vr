@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { TENT_RADIUS } from '../env/Tent.js';
 
 /**
  * Locomotion — comfort-first movement inside the tent.
@@ -9,7 +10,10 @@ import * as THREE from 'three';
  *  - Desktop: WASD relative to the camera
  *
  * Movement is clamped to the tent floor (circle) so you can't wander
- * through the canvas walls or into the booths.
+ * through the canvas walls or into the booths. Booth no-go zones are
+ * ORIENTED rectangles (booths sit at angles around the tent), and if the
+ * player somehow ends up inside one — room-scale walking and snap turns
+ * aren't gated — movement is never blocked, so you can always walk out.
  */
 
 const _v1 = new THREE.Vector3();
@@ -19,7 +23,8 @@ const _head = new THREE.Vector3();
 const WALK_SPEED = 2.2;       // m/s
 const SNAP_ANGLE = Math.PI / 6;
 const STICK_DEAD = 0.15;
-const TENT_RADIUS = 5.6;      // walkable radius (tent is bigger; booths block edges)
+// walkable radius: just inside the visible canvas wall
+const WALK_RADIUS = TENT_RADIUS - 0.5;
 
 export class Locomotion {
   /**
@@ -29,7 +34,7 @@ export class Locomotion {
   constructor(world, input) {
     this.world = world;
     this.input = input;
-    /** extra no-go zones (booth interiors) as XZ rectangles {minX,maxX,minZ,maxZ} */
+    /** no-go zones (booth footprints) as oriented XZ rectangles */
     this.blockers = [];
     this._snapReady = true;
     this._teleporting = false;
@@ -38,8 +43,18 @@ export class Locomotion {
     world.onUpdate((dt) => this.#update(dt));
   }
 
-  addBlocker(minX, maxX, minZ, maxZ) {
-    this.blockers.push({ minX, maxX, minZ, maxZ });
+  /**
+   * Register an oriented rectangular no-go zone.
+   * @param {number} cx world centre x
+   * @param {number} cz world centre z
+   * @param {number} hx half extent along the rect's local x
+   * @param {number} hz half extent along the rect's local z
+   * @param {number} yaw rotation around Y (radians)
+   */
+  addBlocker(cx, cz, hx, hz, yaw = 0) {
+    // three.js Y-rotation maps local (x,z) -> (x cosY + z sinY, -x sinY + z cosY);
+    // the inverse used in #positionAllowed is (dx cosY - dz sinY, dx sinY + dz cosY)
+    this.blockers.push({ cx, cz, hx, hz, cos: Math.cos(yaw), sin: Math.sin(yaw) });
   }
 
   #buildTeleportArc() {
@@ -59,9 +74,13 @@ export class Locomotion {
   }
 
   #positionAllowed(x, z) {
-    if (Math.hypot(x, z) > TENT_RADIUS) return false;
+    if (Math.hypot(x, z) > WALK_RADIUS) return false;
     for (const b of this.blockers) {
-      if (x > b.minX && x < b.maxX && z > b.minZ && z < b.maxZ) return false;
+      // transform into the rect's local frame, then a plain extent test
+      const dx = x - b.cx, dz = z - b.cz;
+      const lx = dx * b.cos - dz * b.sin;
+      const lz = dx * b.sin + dz * b.cos;
+      if (Math.abs(lx) < b.hx && Math.abs(lz) < b.hz) return false;
     }
     return true;
   }
@@ -76,6 +95,14 @@ export class Locomotion {
     // clamp against tent + booth blockers using the HEAD position, since in
     // XR the player can be physically offset from the rig origin
     this.world.getHeadPosition(_head);
+    // ESCAPE RULE: room-scale walking and snap turns can land the head
+    // inside a blocker without ever passing this check. If we're already
+    // in a bad spot, never block movement — otherwise the player is stuck.
+    if (!this.#positionAllowed(_head.x, _head.z)) {
+      rig.position.x += dx;
+      rig.position.z += dz;
+      return;
+    }
     const nx = _head.x + dx, nz = _head.z + dz;
     if (this.#positionAllowed(nx, _head.z)) rig.position.x += dx;
     if (this.#positionAllowed(_head.x, nz)) rig.position.z += dz;

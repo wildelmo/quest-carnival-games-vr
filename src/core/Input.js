@@ -36,13 +36,19 @@ class Hand {
     this._pulseFn = null;
   }
 
-  /** Weighted average velocity over the last ~90ms — feels right for throws. */
+  /**
+   * Throw velocity: direction from the ~90ms average (stable), magnitude
+   * lifted to the PEAK frame-to-frame speed of the last 150ms. Players
+   * release grip a beat after the arm's fastest point, so a plain average
+   * loses a big chunk of the swing — this is what made throws feel weak.
+   * Per-object assist (foam balls vs darts) is applied by Grabbables.
+   */
   computeThrowVelocity(out) {
     const h = this._history;
     out.set(0, 0, 0);
     if (h.length < 2) return out;
     const newest = h[h.length - 1];
-    // find sample ~90ms back
+    // average over ~90ms
     let oldest = h[0];
     for (let i = h.length - 2; i >= 0; i--) {
       if (newest.t - h[i].t >= 0.09) { oldest = h[i]; break; }
@@ -51,8 +57,17 @@ class Hand {
     const dt = newest.t - oldest.t;
     if (dt < 1e-4) return out;
     out.copy(newest.p).sub(oldest.p).divideScalar(dt);
-    // slight assist so casual flicks still reach the targets
-    out.multiplyScalar(1.15);
+    const avgSpeed = out.length();
+    if (avgSpeed < 1e-3) return out;
+    // peak instantaneous speed within the last 150ms
+    let peak = 0;
+    for (let i = h.length - 1; i > 0; i--) {
+      const b = h[i], a = h[i - 1];
+      if (newest.t - a.t > 0.15) break;
+      const sdt = b.t - a.t;
+      if (sdt > 1e-4) peak = Math.max(peak, b.p.distanceTo(a.p) / sdt);
+    }
+    out.multiplyScalar(Math.max(avgSpeed, peak * 0.85) / avgSpeed);
     return out;
   }
 
