@@ -5,6 +5,10 @@ import { defineConfig } from 'vite';
 // otherwise serve over https (e.g. `vite --host` behind a tunnel, or add
 // @vitejs/plugin-basic-ssl).
 export default defineConfig({
+  // Relative base so the build works both at a domain root AND under a
+  // GitHub Pages project subpath (https://<user>.github.io/<repo>/) without
+  // hardcoding the repo name. All bundled asset URLs become relative.
+  base: './',
   server: { port: 5173 },
   build: {
     target: 'es2020',
