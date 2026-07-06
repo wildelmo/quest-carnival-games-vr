@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { DISPLAY_FONT, barberPoleTexture } from '../core/textures.js';
+import { shiny, glowTexture } from '../core/environment.js';
 
 /**
  * ExitBell — a clearly-marked brass service bell on a striped post beside
@@ -34,27 +36,23 @@ export class ExitBell {
   }
 
   #build() {
-    const brass = new THREE.MeshLambertMaterial({ color: 0xd4af37, emissive: 0x3a2c05 });
+    // polished brass — the env map gives it real glints
+    const brass = shiny({ color: 0xd4af37, metalness: 1, roughness: 0.28, envIntensity: 1.25 });
     // the bell dome is an open-bottomed shell — render both faces so its
     // underside reads solid when you look up into it (single-sided would
     // cull the inner faces and leave the top looking see-through)
-    const brassBell = new THREE.MeshLambertMaterial({
-      color: 0xd4af37, emissive: 0x3a2c05, side: THREE.DoubleSide,
+    const brassBell = shiny({
+      color: 0xd4af37, metalness: 1, roughness: 0.28, envIntensity: 1.25,
+      side: THREE.DoubleSide,
     });
-    const postMat = new THREE.MeshLambertMaterial({ color: 0xb01030 });
 
-    // striped candy post
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.05, 1.55, 12), postMat);
+    // proper barber pole with diagonal candy stripes
+    const post = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.045, 0.05, 1.55, 12),
+      new THREE.MeshLambertMaterial({ map: barberPoleTexture('#b01030', '#f6ead7') }),
+    );
     post.position.y = 0.775;
     this.group.add(post);
-    // white barber-pole bands
-    const bandMat = new THREE.MeshLambertMaterial({ color: 0xf6ead7 });
-    for (let i = 0; i < 6; i++) {
-      const band = new THREE.Mesh(new THREE.TorusGeometry(0.048, 0.014, 6, 14), bandMat);
-      band.rotation.x = Math.PI / 2;
-      band.position.y = 0.2 + i * 0.24;
-      this.group.add(band);
-    }
 
     // cross-arm the bell hangs from
     const arm = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.05, 0.05), brass);
@@ -99,12 +97,15 @@ export class ExitBell {
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#0a0a0a'; ctx.fillRect(0, 0, 256, 128);
     ctx.strokeStyle = '#39ff6a'; ctx.lineWidth = 8; ctx.strokeRect(8, 8, 240, 112);
-    ctx.fillStyle = '#39ff6a';
-    ctx.font = 'bold 64px Georgia, serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('EXIT', 128, 60);
+    ctx.shadowColor = '#39ff6a'; ctx.shadowBlur = 16;
+    ctx.fillStyle = '#7bffa0';
+    ctx.font = `56px ${DISPLAY_FONT}`;
+    ctx.fillText('EXIT', 128, 58);
+    ctx.shadowBlur = 6;
     ctx.font = '22px Georgia, serif';
     ctx.fillText('ring to leave', 128, 104);
+    ctx.shadowBlur = 0;
     const tex = new THREE.CanvasTexture(canvas);
     tex.colorSpace = THREE.SRGBColorSpace;
     // double-sided sign so it reads from any approach
@@ -114,8 +115,15 @@ export class ExitBell {
     );
     sign.position.set(0.12, 1.95, 0);
     this.group.add(sign);
-    // a soft green glow marker so it's findable across the tent
-    this.group.add(new THREE.PointLight(0x39ff6a, 3, 3, 2));
+    // a soft green glow halo so it's findable across the tent (a sprite is
+    // free; a real PointLight here would tax every lit pixel in the scene)
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: glowTexture(), color: 0x39ff6a, transparent: true, opacity: 0.4,
+      blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
+    }));
+    halo.scale.setScalar(0.9);
+    halo.position.set(0.12, 1.95, 0);
+    this.group.add(halo);
   }
 
   #update(dt, t) {

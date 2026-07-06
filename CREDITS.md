@@ -47,6 +47,18 @@ A few textures have no bundled recording and are synthesized in
 - **Balloon-pop "snap" layer** — 50ms noise burst on top of the real
   explosion sample.
 
+## Fonts — Google Fonts (SIL Open Font License)
+
+Self-hosted in `public/assets/fonts/` (woff2, latin subset) and also drawn
+into the WebGL canvas textures for signs and scoreboards:
+
+- **Rye** by Nicole Fally — circus/tuscan display face used for all
+  carnival signage. <https://fonts.google.com/specimen/Rye>
+- **VT323** by Peter Hull — dot-matrix terminal face used for the LED
+  scoreboards. <https://fonts.google.com/specimen/VT323>
+
+Both are licensed under the [SIL Open Font License 1.1](https://openfontlicense.org/).
+
 ## Everything else
 
 All models, textures and code are original to this repository (textures are

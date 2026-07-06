@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { DISPLAY_FONT, LED_FONT } from '../core/textures.js';
+import { shiny } from '../core/environment.js';
 
 /**
  * Scoreboard — glowing dot-matrix style panel shared by every booth.
@@ -23,12 +25,15 @@ export class Scoreboard {
     this.ctx = this.canvas.getContext('2d');
     this.texture = new THREE.CanvasTexture(this.canvas);
     this.texture.colorSpace = THREE.SRGBColorSpace;
+    this.texture.anisotropy = 8;
 
-    // panel with a chunky marquee frame
+    // panel in a chunky brass marquee frame
     this.group = new THREE.Group();
+    // half-metal so the gold keeps its colour even at reflection-poor
+    // angles (full metal reads near-black from behind)
     const frame = new THREE.Mesh(
       new THREE.BoxGeometry(1.06, 0.56, 0.06),
-      new THREE.MeshLambertMaterial({ color: 0xd4af37 }),
+      shiny({ color: 0xc9a02e, metalness: 0.55, roughness: 0.4, envIntensity: 1.1 }),
     );
     const screen = new THREE.Mesh(
       new THREE.PlaneGeometry(0.96, 0.46),
@@ -53,39 +58,58 @@ export class Scoreboard {
   #paint() {
     this._dirty = false;
     const { ctx } = this;
-    ctx.fillStyle = '#0b0b12';
+    // deep glass with a slight top sheen
+    const bg = ctx.createLinearGradient(0, 0, 0, 256);
+    bg.addColorStop(0, '#101018');
+    bg.addColorStop(0.12, '#0a0a10');
+    bg.addColorStop(1, '#07070c');
+    ctx.fillStyle = bg;
     ctx.fillRect(0, 0, 512, 256);
     // scanline flavour
-    ctx.fillStyle = 'rgba(255,255,255,0.03)';
+    ctx.fillStyle = 'rgba(255,255,255,0.035)';
     for (let y = 0; y < 256; y += 6) ctx.fillRect(0, y, 512, 2);
 
     ctx.textAlign = 'center';
-    ctx.font = 'bold 40px Georgia, serif';
+    ctx.font = `34px ${DISPLAY_FONT}`;
+    ctx.shadowColor = '#ffb300';
+    ctx.shadowBlur = 14;
     ctx.fillStyle = '#ffd23f';
-    ctx.fillText(this.title, 256, 46);
+    ctx.fillText(this.title, 256, 44);
+    ctx.shadowBlur = 0;
+    // thin rule under the title
+    ctx.fillStyle = 'rgba(255,210,63,0.35)';
+    ctx.fillRect(56, 58, 400, 2);
 
-    ctx.font = 'bold 64px ui-monospace, Menlo, monospace';
-    ctx.fillStyle = '#2ee6d0';
+    // LED digits with their own glow
+    ctx.font = `88px ${LED_FONT}`;
+    ctx.shadowColor = '#2ee6d0';
+    ctx.shadowBlur = 16;
+    ctx.fillStyle = '#4dffe8';
     ctx.textAlign = 'left';
-    ctx.fillText(String(this.score).padStart(4, '0'), 52, 140);
-    ctx.fillStyle = '#ff5d73';
+    ctx.fillText(String(this.score).padStart(4, '0'), 52, 142);
+    ctx.shadowColor = '#ff2f52';
+    ctx.fillStyle = '#ff6079';
     ctx.textAlign = 'right';
-    ctx.fillText(`${String(this.time).padStart(2, '0')}s`, 462, 140);
+    ctx.fillText(`${String(this.time).padStart(2, '0')}s`, 462, 142);
+    ctx.shadowBlur = 0;
 
-    ctx.font = '22px ui-monospace, Menlo, monospace';
+    ctx.font = `22px ${LED_FONT}`;
     ctx.textAlign = 'left';
     ctx.fillStyle = '#8d8da8';
-    ctx.fillText('SCORE', 52, 172);
+    ctx.fillText('SCORE', 54, 170);
     ctx.textAlign = 'right';
-    ctx.fillText('TIME', 462, 172);
+    ctx.fillText('TIME', 460, 170);
 
     ctx.textAlign = 'center';
-    ctx.font = 'bold 30px ui-monospace, Menlo, monospace';
-    ctx.fillStyle = '#ffe9c9';
-    ctx.fillText(this.status, 256, 220);
+    ctx.font = `36px ${LED_FONT}`;
+    ctx.shadowColor = '#ffe9c9';
+    ctx.shadowBlur = 9;
+    ctx.fillStyle = '#ffeed4';
+    ctx.fillText(this.status, 256, 214);
+    ctx.shadowBlur = 0;
     if (this.best > 0) {
-      ctx.font = '20px ui-monospace, Menlo, monospace';
-      ctx.fillStyle = '#8d8da8';
+      ctx.font = `22px ${LED_FONT}`;
+      ctx.fillStyle = '#9d9db8';
       ctx.fillText(`BEST ${this.best}`, 256, 246);
     }
     this.texture.needsUpdate = true;

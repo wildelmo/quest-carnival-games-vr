@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { DISPLAY_FONT } from '../core/textures.js';
+import { shiny } from '../core/environment.js';
 
 /**
  * PushButton — a big physical arcade dome button.
@@ -26,13 +28,18 @@ export class PushButton {
     this._pressDepth = 0;
 
     this.group = new THREE.Group();
+    // brushed-metal collar with a glossy candy dome — reads as a real
+    // arcade button under the env map instead of a matte blob
     const base = new THREE.Mesh(
       new THREE.CylinderGeometry(0.085, 0.1, 0.035, 16),
-      new THREE.MeshLambertMaterial({ color: 0x2a2a35 }),
+      shiny({ color: 0x3a3d4a, metalness: 0.85, roughness: 0.4 }),
     );
     this.dome = new THREE.Mesh(
       new THREE.SphereGeometry(0.062, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2),
-      new THREE.MeshLambertMaterial({ color, emissive: color, emissiveIntensity: 0.25 }),
+      shiny({
+        color, emissive: color, emissiveIntensity: 0.25,
+        roughness: 0.12, envIntensity: 1.2,
+      }),
     );
     this.dome.position.y = 0.018;
     this.group.add(base, this.dome);
@@ -43,7 +50,9 @@ export class PushButton {
       canvas.width = 256; canvas.height = 64;
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = '#1d1d26'; ctx.fillRect(0, 0, 256, 64);
-      ctx.fillStyle = '#ffe9c9'; ctx.font = 'bold 34px Georgia, serif';
+      ctx.strokeStyle = 'rgba(233,193,79,0.8)'; ctx.lineWidth = 4;
+      ctx.strokeRect(4, 4, 248, 56);
+      ctx.fillStyle = '#ffe9c9'; ctx.font = `30px ${DISPLAY_FONT}`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(label, 128, 34);
       const tex = new THREE.CanvasTexture(canvas);

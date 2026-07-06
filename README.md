@@ -51,8 +51,8 @@ npm run dev        # vite dev server on http://localhost:5173
   `adb reverse tcp:5173 tcp:5173`, then browse to `http://localhost:5173`), or
 - serve `npm run build` output (`dist/`) from any HTTPS host.
 
-Click **ENTER VR** on the splash screen. No headset? **PLAY ON DESKTOP**
-gives you a mouse/keyboard version of the same tent.
+Click **START VR** on the splash screen. No headset? *play on desktop
+instead* gives you a mouse/keyboard version of the same tent.
 
 ## Controls
 
@@ -77,6 +77,8 @@ src/
     Locomotion.js    smooth walk, snap turn, teleport arc, no-go zones
     AudioManager.js  positional CC0 samples + synthesized ambience beds
     textures.js      every texture, generated on <canvas> at load
+    environment.js   baked PMREM env map, shiny-material factory, glows
+    Shadows.js       pooled blob contact shadows for dynamic objects
   components/  reusable booth furniture
     BoothBase.js     stall structure, awning, sign, prize shelf, blockers
     Scoreboard.js    canvas-texture score / timer / status panel
@@ -88,7 +90,7 @@ src/
     BallTossGame.js
     BalloonDartGame.js
     RingTossGame.js
-public/assets/       CC0 sounds + free music (see CREDITS.md)
+public/assets/       CC0 sounds, free music, OFL fonts (see CREDITS.md)
 ```
 
 ## Adding a booth
@@ -111,10 +113,16 @@ haptics, and locomotion blockers.
 ## Performance notes (Quest)
 
 - Fixed 90Hz physics step, allocation-free hot paths, bodies sleep.
-- Lambert/Basic materials only, 3 point lights + hemisphere, no shadows;
-  string lights, bunting and the ring-toss bottle field are instanced
-  meshes.
-- Strongest fixed foveation is enabled; whole scene is ~55k triangles,
+- ACES filmic tone mapping plus a small PMREM environment map baked once
+  at boot: hero objects (glass bottles, balloons, rings, brass, buttons)
+  are env-mapped `MeshStandardMaterial`, while the big canvas / plush
+  surfaces stay cheap Lambert with shading baked into their textures.
+- 3 point lights + a hemisphere, **no shadow maps** — dynamic objects get
+  pooled multiply-blended blob shadows (one instanced draw call total).
+- String lights, marquee chase bulbs, bunting and the ring-toss bottle
+  field are instanced meshes; bulb glows and dust motes are additive
+  point sprites (one draw call each).
+- Strongest fixed foveation is enabled; whole scene is ~70k triangles,
   most of it the 324-bottle field (a single static draw call).
 
 ## Audio
