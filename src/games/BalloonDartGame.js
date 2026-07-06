@@ -52,6 +52,9 @@ export class BalloonDartGame extends MiniGame {
       colorA: '#1d2a63', colorB: '#ffd23f',
       signColors: { bg: '#7a1f33', fg: '#ffd23f' },
       shelfY: 2.46, // the 5ft balloon board needs the wall below it clear
+      // START + RESET sit side by side just right of the dart tray so both
+      // are an easy, straight-on reach from the throwing spot
+      startButtonLocal: new THREE.Vector3(0.0, 0.98, 1.45),
       onStart: () => this.tryStart(),
     });
     this.booth.group.updateWorldMatrix(true, true);
@@ -267,7 +270,8 @@ export class BalloonDartGame extends MiniGame {
       },
     });
     const h = this.booth.counterHeight;
-    this.resetButton.group.position.set(0.55, h + 0.03, 1.42);
+    // sits right next to START (at x=0) — the two buttons read as a pair
+    this.resetButton.group.position.set(0.4, h + 0.03, 1.45);
     this.booth.group.add(this.resetButton.group);
   }
 

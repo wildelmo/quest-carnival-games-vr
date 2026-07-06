@@ -85,12 +85,18 @@ export class AudioManager {
 
   /** Must be called from a user gesture / XR session start. */
   start(scene, musicAnchor) {
+    this.resume();
     if (this.started) return;
     this.started = true;
-    if (this.ctx.state === 'suspended') this.ctx.resume();
     this.#startCrowdBed();
     this.#startMusic(musicAnchor);
   }
+
+  /** Pause all audio (used on exit). Ambience/music resume where they left off. */
+  suspend() { if (this.ctx.state === 'running') this.ctx.suspend(); }
+
+  /** Resume after a suspend (called by the enter buttons). */
+  resume() { if (this.ctx.state === 'suspended') this.ctx.resume(); }
 
   /**
    * Play a named sample.

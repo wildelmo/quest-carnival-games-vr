@@ -24,7 +24,7 @@ import { CARNIVAL_PALETTE } from '../core/textures.js';
  */
 
 const BALL_COUNT = 6;
-const BALL_RADIUS = 0.062;
+const BALL_RADIUS = 0.043;    // ~plum-sized foam ball (was 0.062, ~30% smaller)
 const COLS = 5;
 const ROWS = 4;               // 4 rows leaves real headroom between shelves
 const ROW_SPACING = 0.36;     // dolls are ~0.27 tall; ~6cm of air above each
@@ -47,6 +47,9 @@ export class BallTossGame extends MiniGame {
       colorA: '#c2183c', colorB: '#f6ead7',
       signColors: { bg: '#2a0f38', rainbow: true, sub: '6 BALLS · KNOCK EM ALL DOWN!' },
       shelfY: 2.46, // prize shelf clears the top clown row
+      // START sits just right of the ball tray (tray centre x=0.35), near
+      // the front of the counter so it's an easy straight-on reach
+      startButtonLocal: new THREE.Vector3(0.95, 0.98, 1.62),
       onStart: () => this.tryStart(),
     });
     const g = this.booth.group;

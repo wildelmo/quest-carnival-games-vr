@@ -216,11 +216,13 @@ export class Input {
   }
 
   /**
-   * Desktop "E" edge — consumed by PushButton checks. Expires after 200ms so
-   * a press with nothing in range doesn't linger and fire later.
+   * Desktop "E" edge — consumed by PushButton / ExitBell checks. Expires
+   * after 350ms so a press with nothing in range doesn't linger, while
+   * still surviving a slow frame (the press and the in-range check can land
+   * on different frames).
    */
   consumeInteract() {
-    if (this._interactAt && performance.now() - this._interactAt < 200) {
+    if (this._interactAt && performance.now() - this._interactAt < 350) {
       this._interactAt = 0;
       return true;
     }
