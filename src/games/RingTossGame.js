@@ -7,9 +7,10 @@ import { CARNIVAL_PALETTE } from '../core/textures.js';
 /**
  * RING TOSS — the classic wall-to-wall field of glass soda bottles.
  *
- * Modelled on the real boardwalk game: 144 green glass bottles packed
- * neck-to-neck in six wooden soda crates (6x4 bottles each) on a low
- * table, a handful of gold bonus bottles mixed in, and a bucket of 20
+ * Modelled on the real boardwalk game: 324 green glass bottles packed
+ * neck-to-neck in nine wooden soda crates (6x6 bottles each) covering a
+ * full square table — front row an easy lob from the counter, back row a
+ * long throw — with gold bonus bottles mixed in and a bucket of 20
  * plastic rings on the counter. Grab a ring however you like — it rides
  * the hand rigidly like the darts — and toss it at the bottles.
  *
@@ -33,11 +34,11 @@ import { CARNIVAL_PALETTE } from '../core/textures.js';
  * another, then the next throw starts a fresh round.
  */
 
-// bottle lattice: 6 crates of 6x4 bottles, cells sized like a real soda
-// crate (~78mm) so bottle bodies almost touch
-const COLS = 18, ROWS = 8;
+// bottle lattice: a full square — 9 crates of 6x6 bottles, cells sized
+// like a real soda crate (~78mm) so bottle bodies almost touch
+const COLS = 18, ROWS = 18;
 const SPACING = 0.078;
-const CRATE_COLS = 6, CRATE_ROWS = 4; // bottles per crate
+const CRATE_COLS = 6, CRATE_ROWS = 6; // bottles per crate
 const TABLE_Y = 0.72;                 // table top (bottle bases)
 const BOTTLE_H = 0.212;               // classic 7.5" glass soda bottle
 const LIP_R = 0.0135;                 // crown lip outer radius (~27mm dia)
@@ -55,7 +56,7 @@ const FLAT_MIN = 0.72;                // |normal.y| needed to drop over a neck
 const RING_GRAVITY = -8;
 const MAX_BOUNCES = 5;
 
-const RING_POINTS = 25, GOLD_POINTS = 100, GOLD_COUNT = 5;
+const RING_POINTS = 25, GOLD_POINTS = 100, GOLD_COUNT = 10;
 
 // field extents in booth-local space (front row closest to the player)
 const FIELD_X0 = -((COLS - 1) / 2) * SPACING;
@@ -145,14 +146,14 @@ export class RingTossGame extends MiniGame {
     g.add(crates);
   }
 
-  /** 144 glass bottles as ONE InstancedMesh (a single draw call) */
+  /** 324 glass bottles as ONE InstancedMesh (a single draw call) */
   #buildBottles() {
     // low-poly contour-bottle profile: base, body, shoulder, neck, crown lip
     const profile = [
       [0.002, 0], [0.031, 0.004], [BODY_R, 0.075], [0.028, 0.125],
       [0.016, 0.165], [0.0115, 0.185], [LIP_R, 0.205], [0.0125, BOTTLE_H],
     ].map(([r, y]) => new THREE.Vector2(r, y));
-    const geo = new THREE.LatheGeometry(profile, 9);
+    const geo = new THREE.LatheGeometry(profile, 8);
     const mat = new THREE.MeshLambertMaterial({ color: 0xffffff });
     const mesh = new THREE.InstancedMesh(geo, mat, COLS * ROWS);
 
