@@ -89,9 +89,11 @@ public/assets/       CC0 sounds + free music (see CREDITS.md)
 The tent exposes six pads (`tent.getPad(i)`); two are taken. To add game #3:
 
 1. `src/games/RingTossGame.js` — subclass `MiniGame`, build on `BoothBase`
-   (that alone gets you the stall, sign, scoreboard, start button and
+   (that alone gets you the stall, sign, scoreboard, reset button and
    prize shelf), add your props to `this.booth.group`.
-2. Implement `onRoundStart / onRoundEnd / onUpdate / onResetRound`.
+2. Implement `onRoundStart / onRoundEnd / onUpdate / onResetRound`; call
+   `tryStart()` from your throw handler (the first throw starts the round)
+   and `finishReset()` when your reset sequence finishes.
 3. In `src/main.js`, replace a `ComingSoonBooth` with
    `new RingTossGame(deps, tent.getPad(2))`.
 

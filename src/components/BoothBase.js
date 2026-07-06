@@ -7,7 +7,7 @@ import { PushButton } from './PushButton.js';
  * BoothBase — the reusable carnival stall every mini-game is built on.
  *
  * Provides: striped awning, side posts, back/side walls, a counter at
- * 0.95m, a lit name sign, a scoreboard, a start button, a prize shelf
+ * 0.95m, a lit name sign, a scoreboard, a reset button, a prize shelf
  * with plushies, and a floor "throw line" mat. Games add their own
  * contents behind the counter.
  *
@@ -20,7 +20,7 @@ const COUNTER_HEIGHT = 0.95;
 export class BoothBase {
   /**
    * @param {object} deps { world, input, audio }
-   * @param {object} opts { name, width, depth, colorA, colorB, pad, onStart }
+   * @param {object} opts { name, width, depth, colorA, colorB, pad, onReset }
    */
   constructor(deps, opts) {
     this.deps = deps;
@@ -44,24 +44,35 @@ export class BoothBase {
     this.#buildStructure(colorA, colorB, opts.signColors);
     this.#buildPrizeShelf(opts.shelfY ?? 2.25);
 
-    // scoreboard hangs from the awning, tilted down toward the player
+    // scoreboard perched on posts above the back wall, centred over the
+    // game and tilted down toward the throw line — like the score display
+    // on a real boardwalk cabinet. It sits above the prize shelf and the
+    // targets, so nothing in the game is ever behind it.
     this.scoreboard = new Scoreboard(opts.scoreboardTitle ?? this.name);
-    this.scoreboard.group.position.set(this.width / 2 - 0.75, 2.05, this.depth / 2 - 0.15);
-    this.scoreboard.group.rotation.x = -0.25;
+    this.scoreboard.group.position.set(0, 3.25, -this.depth / 2 + 0.06);
+    this.scoreboard.group.rotation.x = -0.35;
+    this.scoreboard.group.scale.setScalar(1.35);
     this.group.add(this.scoreboard.group);
+    const postMat = new THREE.MeshLambertMaterial({ color: 0x2a2a35 });
+    for (const sx of [-0.4, 0.4]) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.8, 8), postMat);
+      post.position.set(sx, 2.9, -this.depth / 2);
+      this.group.add(post);
+    }
 
-    // start button on the counter. Games place it near their play area via
-    // startButtonLocal so it's easy to reach and reads straight-on; default
-    // is toward the front-right of the counter.
-    this.startButton = new PushButton(deps, {
-      color: 0x2ecc71,
-      label: 'START',
-      onPress: () => opts.onStart && opts.onStart(),
+    // the one big RESET button on the counter: it restores the booth to a
+    // fresh round — the game itself starts on the player's first throw.
+    // Games place it near their play area via resetButtonLocal so it's easy
+    // to reach and reads straight-on.
+    this.resetButton = new PushButton(deps, {
+      color: 0xe02249,
+      label: 'RESET',
+      onPress: () => opts.onReset && opts.onReset(),
     });
-    const sb = opts.startButtonLocal
+    const rb = opts.resetButtonLocal
       ?? new THREE.Vector3(this.width / 2 - 0.55, COUNTER_HEIGHT + 0.03, this.depth / 2 - 0.18);
-    this.startButton.group.position.copy(sb);
-    this.group.add(this.startButton.group);
+    this.resetButton.group.position.copy(rb);
+    this.group.add(this.resetButton.group);
 
     // physics: players can't walk into the booth
     if (opts.pad) {

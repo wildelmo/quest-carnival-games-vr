@@ -1,22 +1,25 @@
 import * as THREE from 'three';
 import { MiniGame } from './registry.js';
 import { BoothBase } from '../components/BoothBase.js';
-import { PushButton } from '../components/PushButton.js';
 import { corkTexture, CARNIVAL_PALETTE } from '../core/textures.js';
 
 /**
  * BALLOON DARTS — pop the wall of balloons.
  *
  * A 1.9m x 1.55m (~6ft x 5ft) cork board carries a 7x5 grid of balloons,
- * each tied to a little brass nozzle. Darts live in a foam block on the
- * counter; throw them, they arc, stick into the cork (or a balloon — POP,
- * shards, points) and are quietly re-racked by the invisible attendant a
- * couple of seconds later.
+ * each tied to a little brass nozzle. Darts lie flat in a tray on the
+ * counter, noses already aimed at the board; throw them, they arc, stick
+ * into the cork (or a balloon — POP, shards, points) and are quietly
+ * re-racked by the invisible attendant a couple of seconds later.
  *
- * The big red RESET button runs the re-inflation show: nozzles hiss,
+ * The round starts on the first dart you throw. The big red RESET button
+ * re-racks every loose dart and runs the re-inflation show: nozzles hiss,
  * limp scraps of rubber swell back into balloons one after another with a
- * wobbly overshoot, then lock. Starting a round with holes in the board
- * runs the same sequence first — no balloons ever just "appear".
+ * wobbly overshoot, then lock — no balloons ever just "appear".
+ *
+ * A held dart rides the hand rigidly: point the controller where you want
+ * the dart to go and it goes there. No orientation cleverness — that made
+ * darts pivot at the player's face when they cocked their arm back.
  *
  * Darts are NOT physics bodies: they fly on a swept segment each frame and
  * test balloon spheres + the board plane, which is cheaper and far more
@@ -31,24 +34,17 @@ const GOLD_COUNT = 3;
 const POP_POINTS = 10, GOLD_POINTS = 25, CLEAR_BONUS = 200;
 const DART_GRAVITY = -5.5;   // darts fly a bit flat — feels accurate, not floaty
 const RERACK_DELAY = 2.5;
-// Held-dart tilt. The dart is held in 'level' mode: its needle points along
-// your heading but flattened to horizontal, so it never tracks the wrist
-// straight up. DART_HOLD_PITCH is how far to nose it UP from level — a small
-// ready-to-throw tilt (roughly its y-component, ~10°).
-const DART_HOLD_PITCH = 0.18;
 
 const _v1 = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
 const _v3 = new THREE.Vector3();
 const _m1 = new THREE.Matrix4();
 const _c1 = new THREE.Color();
-// racked darts stand needle-down in the foam, flights up: rotating about X
-// by -90° sends the model's -Z nose to -Y (straight down)
-const _qTipDown = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
 
 export class BalloonDartGame extends MiniGame {
   constructor(deps, pad) {
     super(deps, 40);
+    this.readyStatus = 'THROW A DART TO START';
     const { world } = deps;
 
     this.booth = new BoothBase(deps, {
@@ -57,25 +53,23 @@ export class BalloonDartGame extends MiniGame {
       colorA: '#1d2a63', colorB: '#ffd23f',
       signColors: { bg: '#7a1f33', fg: '#ffd23f' },
       shelfY: 2.46, // the 5ft balloon board needs the wall below it clear
-      // START + RESET sit side by side just right of the dart tray so both
-      // are an easy, straight-on reach from the throwing spot
-      startButtonLocal: new THREE.Vector3(0.0, 0.98, 1.45),
-      onStart: () => this.tryStart(),
+      // RESET sits just right of the dart tray so it's an easy,
+      // straight-on reach from the throwing spot
+      resetButtonLocal: new THREE.Vector3(0.35, 0.98, 1.45),
+      onReset: () => this.requestReset(),
     });
     this.booth.group.updateWorldMatrix(true, true);
     this._now = 0;
     this.balloons = [];
     this.darts = [];
     this._inflateQueue = [];   // balloons waiting for their nozzle turn
-    this._afterReset = null;   // callback once re-inflation finishes
 
     this.#buildBoard();
     this.#buildBalloons();
     this.#buildDarts();
     this.#buildShardPool();
-    this.#buildResetButton();
 
-    this.booth.scoreboard.setStatus('PRESS  START');
+    this.booth.scoreboard.setStatus(this.readyStatus);
   }
 
   /* ---------------------------------------------------------- build ---- */
@@ -172,13 +166,28 @@ export class BalloonDartGame extends MiniGame {
   #buildDarts() {
     const g = this.booth.group;
     const h = this.booth.counterHeight;
-    // foam dart block on the counter
-    const block = new THREE.Mesh(
-      new THREE.BoxGeometry(0.55, 0.09, 0.16),
+    // shallow wooden tray on the counter: the darts lie flat in it, noses
+    // already pointing at the balloon board, ready to pick up and throw
+    const tray = new THREE.Group();
+    tray.position.set(-0.4, h, 1.42);
+    const pad = new THREE.Mesh(
+      new THREE.BoxGeometry(0.6, 0.02, 0.3),
       new THREE.MeshLambertMaterial({ color: 0x2a2a35 }),
     );
-    block.position.set(-0.4, h + 0.045, 1.42);
-    g.add(block);
+    pad.position.y = 0.01;
+    tray.add(pad);
+    const trayMat = new THREE.MeshLambertMaterial({ color: 0x54371f });
+    for (const [x, z, sx, sz] of [
+      [0, -0.16, 0.64, 0.04],
+      [0, 0.16, 0.64, 0.04],
+      [-0.32, 0, 0.04, 0.36],
+      [0.32, 0, 0.04, 0.36],
+    ]) {
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(sx, 0.05, sz), trayMat);
+      wall.position.set(x, 0.025, z);
+      tray.add(wall);
+    }
+    g.add(tray);
 
     // Proper dart anatomy, modelled pointing along -Z (three.js "forward"):
     // steel needle -> colored metal barrel (where you grip) -> thin dark
@@ -218,7 +227,7 @@ export class BalloonDartGame extends MiniGame {
       dart.add(needle, barrel, shaft, f1, f2);
       this.deps.world.scene.add(dart);
 
-      const rackPosLocal = new THREE.Vector3(-0.4 - 0.22 + i * 0.09, h + 0.13, 1.42);
+      const rackPosLocal = new THREE.Vector3(-0.4 - 0.225 + i * 0.09, h + 0.035, 1.42);
       const d = {
         mesh: dart, state: 'racked',
         velocity: new THREE.Vector3(),
@@ -231,11 +240,9 @@ export class BalloonDartGame extends MiniGame {
       d.grab = this.deps.grabbables.add(dart, {
         radius: 0.075,
         throwBoost: 1.45, // darts are precise, not powerful — help them along
-        // keep the needle pointing forward and LEVEL in the hand (never tracking
-        // the wrist straight up), so it rests in the direction it'll be thrown
+        // rigid hold: the dart's nose tracks the controller's forward, so the
+        // player aims it exactly like a real dart held in the fingers
         holdPosition: new THREE.Vector3(0, 0, -0.02),
-        holdMode: 'level',
-        holdPitch: DART_HOLD_PITCH,
         onGrab: () => { d.state = 'held'; },
         onThrow: (vel) => this.#throwDart(d, vel),
       });
@@ -267,32 +274,7 @@ export class BalloonDartGame extends MiniGame {
     this.shards.instanceMatrix.needsUpdate = true;
   }
 
-  #buildResetButton() {
-    this.resetButton = new PushButton(this.deps, {
-      color: 0xe02249,
-      label: 'RESET',
-      onPress: () => {
-        if (this.state === 'running' || this.state === 'resetting') return;
-        this.#beginReinflate();
-      },
-    });
-    const h = this.booth.counterHeight;
-    // sits right next to START (at x=0) — the two buttons read as a pair
-    this.resetButton.group.position.set(0.4, h + 0.03, 1.45);
-    this.booth.group.add(this.resetButton.group);
-  }
-
   /* -------------------------------------------------------- gameplay ---- */
-
-  /** starting with a holey board runs the re-inflation first */
-  tryStart() {
-    if (this.state === 'running' || this.state === 'resetting') return;
-    if (this.balloons.some(b => !b.alive)) {
-      this.#beginReinflate(() => super.tryStart());
-    } else {
-      super.tryStart();
-    }
-  }
 
   onRoundStart() {
     this.booth.scoreboard.setStatus('POP  THE  BALLOONS!');
@@ -300,29 +282,40 @@ export class BalloonDartGame extends MiniGame {
 
   onRoundEnd(reason) {
     this.booth.scoreboard.setStatus(
-      reason === 'cleared' ? 'BOARD  CLEARED!' : 'TIME  UP! PRESS RESET');
+      reason === 'cleared' ? 'CLEARED! PRESS RESET' : 'TIME UP! PRESS RESET');
+  }
+
+  /** RESET: the attendant re-racks every loose dart, then re-inflates */
+  onResetRound() {
+    this.booth.scoreboard.setStatus('RE-INFLATING…');
+    for (const d of this.darts) {
+      if (d.state !== 'held') this.#rackDart(d, true);
+    }
+    // queue the nozzle show for every popped balloon, in random order;
+    // #updateInflateQueue calls finishReset() once the board is whole again
+    const dead = this.balloons.filter(b => !b.alive);
+    dead.sort(() => Math.random() - 0.5);
+    dead.forEach((b, i) => {
+      this._inflateQueue.push({ balloon: b, at: this._now + 0.3 + i * 0.22 });
+    });
   }
 
   #throwDart(dart, vel) {
-    if (vel.length() < 1.2) {
-      // too gentle to fly — just drop it
-      dart.state = 'fallen';
-      dart.velocity.copy(vel);
-      dart.rerackAt = this._now + RERACK_DELAY;
-      return;
-    }
     dart.state = 'flying';
-    dart.velocity.copy(vel).multiplyScalar(1.05);
+    dart.velocity.copy(vel);
     dart.mesh.getWorldPosition(dart.prevPos);
+    // too gentle to fly — it just tumbles to the counter or floor
+    if (vel.length() < 1.2) return;
+    this.tryStart(); // the first real throw begins the round
+    dart.velocity.multiplyScalar(1.05);
     this.deps.audio.play('dispense', { volume: 0.15, rate: 2.2 }); // faint whoosh
   }
 
   #rackDart(dart, instant = false) {
     dart.state = 'racked';
     dart.mesh.position.copy(this.booth.group.localToWorld(dart.rackPosLocal.clone()));
-    // standing tip-down in the foam block
+    // lying flat in the tray, needle aimed at the board
     this.booth.group.getWorldQuaternion(dart.mesh.quaternion);
-    dart.mesh.quaternion.multiply(_qTipDown);
     if (!instant) this.deps.audio.play('targetUp', { at: dart.mesh, volume: 0.2, rate: 1.8 });
   }
 
@@ -357,27 +350,12 @@ export class BalloonDartGame extends MiniGame {
     if (this.shards.instanceColor) this.shards.instanceColor.needsUpdate = true;
   }
 
-  /** staggered mechanical re-inflation — the star of the reset show */
-  #beginReinflate(onDone) {
-    const dead = this.balloons.filter(b => !b.alive);
-    if (!dead.length) { if (onDone) onDone(); return; }
-    this.state = 'resetting';
-    this.booth.scoreboard.setStatus('RE-INFLATING…');
-    this._afterReset = onDone || null;
-    // random order, one every 0.22s
-    dead.sort(() => Math.random() - 0.5);
-    dead.forEach((b, i) => {
-      this._inflateQueue.push({ balloon: b, at: this._now + 0.3 + i * 0.22 });
-    });
-  }
-
   onUpdate(dt, t) {
     this._now = t;
     this.#updateDarts(dt, t);
     this.#updateBalloons(dt, t);
     this.#updateShards(dt);
     this.#updateInflateQueue(t);
-    this.resetButton.enabled = this.state !== 'running' && this.state !== 'resetting';
   }
 
   #updateDarts(dt, t) {
@@ -394,9 +372,11 @@ export class BalloonDartGame extends MiniGame {
           _v2.copy(d.mesh.position).sub(_v1);
           d.mesh.lookAt(_v2);
           this.#sweepDart(d);
-          // out of bounds / floor
-          if (d.mesh.position.y < 0.03) {
-            d.mesh.position.y = 0.03;
+          // settle on whatever is below: the counter top when the dart is
+          // over it (a gentle drop near the tray), otherwise the tent floor
+          const rest = this.#restHeightAt(d.mesh.position);
+          if (d.mesh.position.y < rest) {
+            d.mesh.position.y = rest;
             d.state = 'fallen';
             d.rerackAt = t + RERACK_DELAY;
             this.deps.audio.play('thud', { at: d.mesh, volume: 0.25, rate: 1.6 });
@@ -416,6 +396,15 @@ export class BalloonDartGame extends MiniGame {
           break;
       }
     }
+  }
+
+  /** where a falling dart comes to rest: counter top when over it, else floor */
+  #restHeightAt(worldPos) {
+    _v3.copy(worldPos);
+    this.booth.group.worldToLocal(_v3);
+    const overCounter = Math.abs(_v3.x) < this.booth.width / 2 &&
+      Math.abs(_v3.z - this.booth.depth / 2) < 0.25;
+    return overCounter ? this.booth.counterHeight + 0.02 : 0.03;
   }
 
   /** swept segment vs balloons, then vs the cork plane */
@@ -522,12 +511,8 @@ export class BalloonDartGame extends MiniGame {
     // reset finished?
     if (this.state === 'resetting' && this._inflateQueue.length === 0 &&
         this.balloons.every(b => b.alive && b.inflate >= 1)) {
-      this.state = 'idle';
-      this.booth.scoreboard.setStatus('PRESS  START');
       this.deps.audio.play('bell', { at: this.booth.group, volume: 0.5, rate: 1.2 });
-      const done = this._afterReset;
-      this._afterReset = null;
-      if (done) done();
+      this.finishReset();
     }
   }
 }
