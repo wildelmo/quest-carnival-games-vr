@@ -9,8 +9,8 @@ teleport between.
 
 **Playable now:**
 
-- **🎯 Ball Toss** — a chute dispenses six foam softballs into your tray.
-  Knock down the 5×5 wall of plush clowns, ducks and monsters before the
+- **🎯 Down the Clown (ball toss)** — a chute dispenses six foam softballs into your tray.
+  Knock down the 5×5 wall of plush carnival clowns before the
   timer runs out. Targets wobble on glancing hits and slam backwards on
   solid ones; balls bounce around the stall, get swept into the grate at
   the base of the wall and ride the return pipe back to your tray.

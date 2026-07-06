@@ -45,7 +45,9 @@ const SWAPPABLE = {
   music: '../music/1918.mp3',    // ragtime piano — Anttis Instrumentals (free)
 };
 
-const SOUND_DIR = 'assets/sounds/';
+// Prefix with Vite's BASE_URL so runtime-loaded audio resolves correctly
+// whether the app is served from a domain root or a GitHub Pages subpath.
+const SOUND_DIR = import.meta.env.BASE_URL + 'assets/sounds/';
 
 export class AudioManager {
   /**
