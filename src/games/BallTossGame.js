@@ -261,15 +261,30 @@ export class BallTossGame extends MiniGame {
 
     this.trayCenter = this.#localToWorld(0.35, h + 0.1, 1.5);
 
-    // return chute: angled pipe emerging left of the tray
-    const pipe = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.085, 0.085, 0.5, 10, 1, true),
-      new THREE.MeshLambertMaterial({ color: 0x9aa0b4, side: THREE.DoubleSide }),
+    // return spout: a short chute that rises from the left end of the tray and
+    // pours balls back INTO the tray. Its mouth sits just above the tray's
+    // left interior, angled down toward the middle so returned balls settle in
+    // the tray rather than beside it.
+    const metalMat = new THREE.MeshLambertMaterial({ color: 0x9aa0b4 });
+    const mouthLocal = new THREE.Vector3(0.02, h + 0.22, 1.5);
+    // upright feeder housing behind the tray's left corner
+    const housing = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.34, 0.16), metalMat);
+    housing.position.set(-0.14, h + 0.17, 1.44);
+    g.add(housing);
+    // the angled spout coming off the housing, mouth over the tray
+    const spout = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.06, 0.07, 0.3, 12),
+      metalMat,
     );
-    pipe.position.set(-1.15, h + 0.02, 1.45);
-    pipe.rotation.z = 1.1;
-    g.add(pipe);
-    this.chuteMouthLocal = new THREE.Vector3(-0.95, h + 0.18, 1.45);
+    spout.position.set(-0.06, h + 0.28, 1.48);
+    spout.rotation.z = 0.85;   // tip the open mouth down toward the tray centre
+    g.add(spout);
+    // a rim ring at the mouth so the opening reads clearly
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.012, 8, 16), metalMat);
+    rim.position.copy(mouthLocal);
+    rim.rotation.set(Math.PI / 2 - 0.85, 0, 0);
+    g.add(rim);
+    this.chuteMouthLocal = mouthLocal.clone();
   }
 
   /** sloped-floor sweep + grate that swallows balls and feeds the chute */
@@ -380,9 +395,9 @@ export class BallTossGame extends MiniGame {
 
   onRoundEnd(reason) {
     this.booth.scoreboard.setStatus(
-      reason === 'cleared' ? 'CLEARED!  +' + CLEAR_BONUS : 'TIME  UP!');
-    // reset the wall after a short beat so players see what they hit
-    this._resetAt = this._now + 2.6;
+      reason === 'cleared' ? 'CLEARED!  PRESS  START' : 'TIME  UP!  PRESS  START');
+    // knocked dolls stay down — the wall is only re-raised when the player
+    // presses START for the next round (see onRoundStart).
   }
 
   #startRise(target) {
@@ -398,7 +413,9 @@ export class BallTossGame extends MiniGame {
     ball.grab.enabled = true;
     ball.body.enabled = true;
     ball.body.warp(mouth);
-    ball.body.velocity.copy(this.#localDir(1.4, 0.9, 0));
+    // gentle pour toward the tray centre — the mouth already sits above the
+    // tray, so a soft nudge is enough to drop the ball in and let it settle
+    ball.body.velocity.copy(this.#localDir(0.6, 0.15, 0));
     this.deps.audio.play('dispense', { at: mouth, volume: 0.6, rate: 1.3 });
   }
 
@@ -414,18 +431,6 @@ export class BallTossGame extends MiniGame {
         }
       }
     }
-    if (this._resetAt && t >= this._resetAt) {
-      this._resetAt = 0;
-      this.state = 'idle';
-      this.booth.scoreboard.setStatus('PRESS  START');
-      this.targets.forEach((target, i) => {
-        if (target.state !== 'up') {
-          this.#startRise(target);
-          target.riseDelay = i * 0.06; // ripple across the wall
-        }
-      });
-    }
-
     this.#animateTargets(dt, t);
     this.#updateBallAudio();
   }
@@ -450,10 +455,8 @@ export class BallTossGame extends MiniGame {
           }
           break;
         case 'down':
-          // outside a round, targets pick themselves back up after a bit
-          if (this.state !== 'running' && this.state !== 'over' && t - target.downTime > 2.5) {
-            this.#startRise(target);
-          }
+          // a knocked-down doll stays down until the next round is started
+          // (onRoundStart raises the whole wall) — it never self-rights.
           break;
         case 'rising': {
           if (target.riseDelay > 0) { target.riseDelay -= dt; break; }

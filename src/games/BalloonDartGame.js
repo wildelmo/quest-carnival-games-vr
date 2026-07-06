@@ -31,6 +31,11 @@ const GOLD_COUNT = 3;
 const POP_POINTS = 10, GOLD_POINTS = 25, CLEAR_BONUS = 200;
 const DART_GRAVITY = -5.5;   // darts fly a bit flat — feels accurate, not floaty
 const RERACK_DELAY = 2.5;
+// Held-dart pose. The needle should lie roughly along the controller's aim —
+// the same grip -Z basis the (working) teleport arc uses — so the dart rests
+// horizontal in the hand, nosed up a touch like you'd cock it before a throw,
+// NOT standing straight up. Nudge DART_HOLD_PITCH if it sits off in-headset.
+const DART_HOLD_PITCH = 0.2;
 
 const _v1 = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
@@ -226,9 +231,10 @@ export class BalloonDartGame extends MiniGame {
       d.grab = this.deps.grabbables.add(dart, {
         radius: 0.075,
         throwBoost: 1.45, // darts are precise, not powerful — help them along
-        // hold the dart tilted slightly up, like you'd actually grip one
-        holdPosition: new THREE.Vector3(0, 0.01, -0.06),
-        holdQuaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.5, 0, 0)),
+        // grip the dart at the barrel with the needle pointing forward along
+        // the aim (horizontal), tilted up slightly — see DART_HOLD_PITCH
+        holdPosition: new THREE.Vector3(0, 0, -0.03),
+        holdQuaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(DART_HOLD_PITCH, 0, 0)),
         onGrab: () => { d.state = 'held'; },
         onThrow: (vel) => this.#throwDart(d, vel),
       });

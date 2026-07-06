@@ -35,6 +35,12 @@ export class ExitBell {
 
   #build() {
     const brass = new THREE.MeshLambertMaterial({ color: 0xd4af37, emissive: 0x3a2c05 });
+    // the bell dome is an open-bottomed shell — render both faces so its
+    // underside reads solid when you look up into it (single-sided would
+    // cull the inner faces and leave the top looking see-through)
+    const brassBell = new THREE.MeshLambertMaterial({
+      color: 0xd4af37, emissive: 0x3a2c05, side: THREE.DoubleSide,
+    });
     const postMat = new THREE.MeshLambertMaterial({ color: 0xb01030 });
 
     // striped candy post
@@ -55,19 +61,22 @@ export class ExitBell {
     arm.position.set(0.12, 1.55, 0);
     this.group.add(arm);
 
-    // the bell itself (open-bottomed dome) swings under the arm
+    // the bell itself (open-bottomed dome) swings under the arm. The spherical
+    // cap is generated from the top pole down, so it is ALREADY a dome with a
+    // rounded closed top and an open bottom rim — no flip needed. (The old
+    // rotation.x = Math.PI turned it into an upward-opening bowl, which is why
+    // the top looked missing / see-through.)
     this.bellPivot = new THREE.Group();
     this.bellPivot.position.set(0.28, 1.53, 0);
     const bell = new THREE.Mesh(
       new THREE.SphereGeometry(0.11, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2.1),
-      brass,
+      brassBell,
     );
-    bell.rotation.x = Math.PI;          // open side down
     bell.position.y = -0.11;
     const yoke = new THREE.Mesh(new THREE.TorusGeometry(0.02, 0.008, 6, 10), brass);
     const clapper = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 6),
       new THREE.MeshLambertMaterial({ color: 0x6b4a2c }));
-    clapper.position.y = -0.16;
+    clapper.position.y = -0.12;         // hangs just at the bell's open mouth
     this.bellPivot.add(bell, yoke, clapper);
     this.group.add(this.bellPivot);
 

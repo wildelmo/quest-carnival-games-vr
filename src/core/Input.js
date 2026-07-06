@@ -112,26 +112,58 @@ export class Input {
 
   #setupXR() {
     const { renderer, rig } = this.world;
+    // per-hand ring colours so left/right are easy to tell apart
+    const handColors = [0x2ee6d0, 0xff5db4];
     for (let i = 0; i < 2; i++) {
       const hand = this.hands[i];
       const grip = renderer.xr.getControllerGrip(i);
       const ray = renderer.xr.getController(i);
+      // visible stand-in for the controller so the player can see their hands.
+      // Hidden until a controller actually connects (keeps it off on desktop).
+      const model = this.#buildControllerModel(handColors[i]);
+      model.visible = false;
+      grip.add(model);
       rig.add(grip, ray);
       hand._grip = grip;
       hand._ray = ray;
+      hand._model = model;
       ray.addEventListener('connected', (e) => {
         hand.connected = true;
         hand.handedness = e.data.handedness;
         hand._inputSource = e.data;
+        hand._model.visible = true;
         hand._pulseFn = (intensity, ms) => {
           const act = e.data.gamepad?.hapticActuators?.[0];
           if (act?.pulse) act.pulse(intensity, ms);
         };
       });
-      ray.addEventListener('disconnected', () => { hand.connected = false; });
+      ray.addEventListener('disconnected', () => {
+        hand.connected = false;
+        hand._model.visible = false;
+      });
     }
     renderer.xr.addEventListener('sessionstart', () => { this.isXR = true; });
     renderer.xr.addEventListener('sessionend', () => { this.isXR = false; });
+  }
+
+  /**
+   * A small unlit stand-in for a controller: a bright ring around the hand, a
+   * short grip stub, and a forward nub so orientation/aim reads clearly. Unlit
+   * (MeshBasic) so it's visible regardless of scene lighting. Modelled in grip
+   * space — origin at the palm, -Z is the aim direction.
+   */
+  #buildControllerModel(color) {
+    const group = new THREE.Group();
+    const mat = new THREE.MeshBasicMaterial({ color });
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.036, 0.008, 10, 24), mat);
+    group.add(ring);
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.013, 0.1, 10), mat);
+    handle.position.set(0, -0.05, 0.008);
+    group.add(handle);
+    const nub = new THREE.Mesh(new THREE.SphereGeometry(0.013, 8, 6), mat);
+    nub.position.set(0, 0, -0.05);
+    group.add(nub);
+    return group;
   }
 
   #setupDesktop() {
