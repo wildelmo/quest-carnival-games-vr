@@ -32,6 +32,15 @@ export class Grabbable {
     // pose of the object relative to the hand while held (darts point forward)
     this.holdPosition = opts.holdPosition ?? new THREE.Vector3(0, 0, -0.03);
     this.holdQuaternion = opts.holdQuaternion ?? new THREE.Quaternion();
+    /**
+     * How the held object is oriented each frame:
+     *  - null (default): rigidly mirror the hand (gripQuaternion * holdQuaternion)
+     *  - 'level': aim the object's nose (-Z) along the hand's heading but kept
+     *    horizontal, so a thrown object (a dart) sits level in the hand ready
+     *    to fly forward instead of tracking the wrist's pitch straight up.
+     */
+    this.holdMode = opts.holdMode ?? null;
+    this.holdPitch = opts.holdPitch ?? 0; // small upward tilt for 'level' mode
     /** throw assist multiplier — casual flicks should still reach the targets */
     this.throwBoost = opts.throwBoost ?? 1.3;
     this.onGrab = opts.onGrab ?? null;
@@ -103,7 +112,25 @@ export class Grabbables {
       if (g) {
         g.object.position.copy(g.holdPosition).applyQuaternion(hand.gripQuaternion)
           .add(hand.gripPosition);
-        g.object.quaternion.copy(hand.gripQuaternion).multiply(g.holdQuaternion);
+        if (g.holdMode === 'level') {
+          // heading = where the hand points, flattened to horizontal so the
+          // object stays level no matter how the wrist is pitched
+          _v1.set(0, 0, -1).applyQuaternion(hand.gripQuaternion);
+          _v1.y = 0;
+          if (_v1.lengthSq() < 1e-4) {
+            // hand pointing near-straight up/down: fall back to view heading
+            this.world.camera.getWorldDirection(_v1);
+            _v1.y = 0;
+          }
+          _v1.normalize();
+          _v1.y = g.holdPitch;   // optional slight nose-up
+          _v1.normalize();
+          // lookAt points +Z at the target; the nose is -Z, so look BEHIND
+          _v2.copy(g.object.position).sub(_v1);
+          g.object.lookAt(_v2);
+        } else {
+          g.object.quaternion.copy(hand.gripQuaternion).multiply(g.holdQuaternion);
+        }
       }
     }
   }
