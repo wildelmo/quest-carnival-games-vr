@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Carnival Arcade VR</title>
+  <style>
+    html, body { margin: 0; padding: 0; overflow: hidden; background: #14060e; height: 100%; }
+    #app { position: fixed; inset: 0; }
+    /* Splash / help overlay shown until the player enters (VR or desktop) */
+    #overlay {
+      position: fixed; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; z-index: 10;
+      background: radial-gradient(ellipse at center, #3a0f24 0%, #14060e 75%);
+      color: #ffe9c9; font-family: Georgia, 'Times New Roman', serif; text-align: center;
+      transition: opacity .4s; user-select: none;
+    }
+    #overlay.hidden { opacity: 0; pointer-events: none; }
+    #overlay h1 {
+      font-size: clamp(28px, 6vw, 56px); margin: 0 0 6px;
+      color: #ffd23f; text-shadow: 0 0 18px #ff5d73, 0 3px 0 #7a1f33;
+      letter-spacing: 3px;
+    }
+    #overlay p.sub { margin: 0 0 26px; font-style: italic; color: #ffb4c0; }
+    #overlay .controls {
+      background: rgba(0,0,0,.35); border: 1px solid #7a1f33; border-radius: 10px;
+      padding: 14px 22px; font-size: 14px; line-height: 1.7; max-width: 560px;
+      font-family: ui-monospace, Menlo, Consolas, monospace; text-align: left;
+    }
+    #overlay .controls b { color: #ffd23f; }
+    #buttons { display: flex; gap: 14px; margin: 22px 0 10px; }
+    #buttons button {
+      font: bold 18px Georgia, serif; letter-spacing: 1px; cursor: pointer;
+      padding: 14px 30px; border-radius: 999px; border: 3px solid #ffd23f;
+      background: #c2183c; color: #fff; text-shadow: 0 1px 2px #000;
+      box-shadow: 0 0 22px rgba(255, 93, 115, .6);
+    }
+    #buttons button:hover { background: #e02249; transform: scale(1.04); }
+    #buttons button:disabled { opacity: .4; cursor: default; transform: none; }
+    #loading { font-size: 13px; color: #d98d9d; min-height: 18px; }
+    /* Desktop crosshair */
+    #crosshair {
+      position: fixed; left: 50%; top: 50%; width: 10px; height: 10px; z-index: 5;
+      margin: -5px 0 0 -5px; pointer-events: none; display: none;
+      border: 2px solid rgba(255, 233, 201, .9); border-radius: 50%;
+      box-shadow: 0 0 4px #000;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="crosshair"></div>
+  <div id="overlay">
+    <h1>&#127914; CARNIVAL ARCADE &#127914;</h1>
+    <p class="sub">step right up — everyone's a winner!</p>
+    <div id="buttons">
+      <button id="btn-vr" disabled>ENTER VR</button>
+      <button id="btn-desktop" disabled>PLAY ON DESKTOP</button>
+    </div>
+    <div id="loading">warming up the popcorn machine…</div>
+    <div class="controls">
+      <div><b>QUEST</b> &nbsp;Grip: grab balls &amp; darts &middot; swing + release to throw</div>
+      <div>Left stick: walk &middot; Right stick fwd: teleport &middot; Right stick left/right: snap turn</div>
+      <div>Poke the big buttons on the counters to start / reset a game.</div>
+      <div style="margin-top:8px"><b>DESKTOP</b> &nbsp;WASD move &middot; mouse look &middot; click: grab, click again: throw</div>
+      <div>E: press buttons &middot; Esc: release mouse</div>
+    </div>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
