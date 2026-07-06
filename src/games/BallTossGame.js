@@ -18,6 +18,10 @@ import { CARNIVAL_PALETTE } from '../core/textures.js';
  * Rows score 10/20/30/40 bottom→top. Clearing the whole wall ends the
  * round early with a +150 bonus and a fanfare.
  *
+ * The round starts on the first ball you throw. The RESET button restores
+ * everything: dolls winch back up, loose balls ride the return pipe back
+ * to the tray, and the next throw begins a fresh round.
+ *
  * Each clown is ONE mesh: all its parts (body, ruff, head, hair, face)
  * are merged into a single vertex-coloured geometry shared by every
  * doll, so the whole wall costs 20 draw calls.
@@ -38,6 +42,7 @@ const _q1 = new THREE.Quaternion();
 export class BallTossGame extends MiniGame {
   constructor(deps, pad) {
     super(deps, 45);
+    this.readyStatus = 'THROW A BALL TO START';
     const { world, audio, grabbables } = deps;
 
     this.booth = new BoothBase(deps, {
@@ -47,10 +52,10 @@ export class BallTossGame extends MiniGame {
       colorA: '#c2183c', colorB: '#f6ead7',
       signColors: { bg: '#2a0f38', rainbow: true, sub: '6 BALLS · KNOCK EM ALL DOWN!' },
       shelfY: 2.46, // prize shelf clears the top clown row
-      // START sits just right of the ball tray (tray centre x=0.35), near
+      // RESET sits just right of the ball tray (tray centre x=0.35), near
       // the front of the counter so it's an easy straight-on reach
-      startButtonLocal: new THREE.Vector3(0.95, 0.98, 1.62),
-      onStart: () => this.tryStart(),
+      resetButtonLocal: new THREE.Vector3(0.95, 0.98, 1.62),
+      onReset: () => this.requestReset(),
     });
     const g = this.booth.group;
     g.updateWorldMatrix(true, true);
@@ -75,7 +80,7 @@ export class BallTossGame extends MiniGame {
     this.#buildGutter();
     this.#spawnBalls(grabbables, audio, world);
 
-    this.booth.scoreboard.setStatus('PRESS  START');
+    this.booth.scoreboard.setStatus(this.readyStatus);
   }
 
   /* ---------------------------------------------------------- build ---- */
@@ -363,8 +368,13 @@ export class BallTossGame extends MiniGame {
       const ball = {
         mesh, body,
         roll: audio.createRollLoop(mesh),
-        // generous throw assist: a relaxed flick should reach the top shelf
-        grab: grabbables.add(mesh, { radius: BALL_RADIUS + 0.03, body, throwBoost: 1.6 }),
+        grab: grabbables.add(mesh, {
+          radius: BALL_RADIUS + 0.03, body,
+          // generous throw assist: a relaxed flick should reach the top shelf
+          throwBoost: 1.6,
+          // the first real throw starts the round (a gentle drop doesn't)
+          onThrow: (vel) => { if (vel.length() > 1) this.tryStart(); },
+        }),
       };
       this.balls.push(ball);
       // start life resting in the tray
@@ -378,7 +388,20 @@ export class BallTossGame extends MiniGame {
 
   onRoundStart() {
     this.booth.scoreboard.setStatus('KNOCK  EM  DOWN!');
+  }
+
+  onRoundEnd(reason) {
+    this.booth.scoreboard.setStatus(
+      reason === 'cleared' ? 'CLEARED! PRESS RESET' : 'TIME UP! PRESS RESET');
+    // knocked dolls stay down — the wall is only re-raised when the player
+    // presses RESET for the next round (see onResetRound).
+  }
+
+  /** RESET: winch the whole wall back up and recall every loose ball */
+  onResetRound() {
+    this.booth.scoreboard.setStatus('RESETTING…');
     // pull every loose ball back through the machine, one at a time
+    this._pendingReturns.length = 0;
     this._dispenseQueue.length = 0;
     let slot = 0;
     for (const ball of this.balls) {
@@ -389,15 +412,7 @@ export class BallTossGame extends MiniGame {
       this._dispenseQueue.push({ ball, at: this._now + 0.4 + slot * 0.35 });
       slot++;
     }
-    // raise any targets that were knocked over while idling
     for (const t of this.targets) if (t.state !== 'up') this.#startRise(t);
-  }
-
-  onRoundEnd(reason) {
-    this.booth.scoreboard.setStatus(
-      reason === 'cleared' ? 'CLEARED!  PRESS  START' : 'TIME  UP!  PRESS  START');
-    // knocked dolls stay down — the wall is only re-raised when the player
-    // presses START for the next round (see onRoundStart).
   }
 
   #startRise(target) {
@@ -433,6 +448,19 @@ export class BallTossGame extends MiniGame {
     }
     this.#animateTargets(dt, t);
     this.#updateBallAudio();
+
+    if (this.state === 'resetting') {
+      // a stray ball can knock a doll while the wall is rising — re-raise it
+      // so the reset always converges on a full standing wall
+      for (const target of this.targets) {
+        if (target.state === 'down') this.#startRise(target);
+      }
+      // reset is done once every doll stands and the ball machine is quiet
+      if (this._dispenseQueue.length === 0 && this._pendingReturns.length === 0 &&
+          this.targets.every(x => x.state === 'up')) {
+        this.finishReset();
+      }
+    }
   }
 
   #animateTargets(dt, t) {

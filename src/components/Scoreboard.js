@@ -14,7 +14,7 @@ export class Scoreboard {
     this.score = 0;
     this.best = 0;
     this.time = 0;
-    this.status = 'PRESS  START';
+    this.status = 'THROW TO START';
     this._dirty = true;
 
     this.canvas = document.createElement('canvas');
