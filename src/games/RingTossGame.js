@@ -20,6 +20,8 @@ import { shiny } from '../core/environment.js';
  * about 3% of the time. That's too cruel for VR, so our ring is 50mm ID
  * over the same lip — a flat, well-aimed lob ringers a few times per
  * bucket, but tilted rings still clatter off the necks like the real thing.
+ * A held ring keeps the orientation it was grabbed in and turns with the
+ * wrist like any free object (see Grabbables).
  *
  * Rings are NOT physics bodies (the engine only does spheres). Each flying
  * ring integrates ballistically in booth-local space and resolves against
@@ -235,8 +237,8 @@ export class RingTossGame extends MiniGame {
       ring.grab = this.deps.grabbables.add(mesh, {
         radius: RING_OUTER + 0.035,
         throwBoost: 1.5,
-        // rigid hold, just like the darts: pick it up in whatever orientation
-        // you like and place your toss by wrist alone
+        // palm anchor only — the ring keeps its grabbed orientation, so
+        // you pick it up however it lies and level it with your wrist
         holdPosition: new THREE.Vector3(0, 0, -0.06),
         onGrab: () => { ring.state = 'held'; },
         onThrow: (vel) => this.#throwRing(ring, vel),
