@@ -68,7 +68,14 @@ export class AudioManager {
     this.buffers = new Map();   // name -> AudioBuffer[]
     this.started = false;
     this._musicSound = null;
+    this._musicOn = true;
     this._crowdNodes = null;
+  }
+
+  /** Operator-panel music toggle (ambience beds are the world — they stay). */
+  setMusicEnabled(on) {
+    this._musicOn = on;
+    if (this._musicSound?.buffer) this._musicSound.setVolume(on ? 0.35 : 0);
   }
 
   /** Fetch + decode all samples up front (a few hundred KB total). */
@@ -245,7 +252,7 @@ export class AudioManager {
       sound.setLoop(true);
       sound.setRefDistance(3.5);
       sound.setRolloffFactor(1.1);
-      sound.setVolume(0.35);
+      sound.setVolume(this._musicOn ? 0.35 : 0);
       sound.play();
     });
     anchor.add(sound);

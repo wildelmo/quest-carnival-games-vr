@@ -5,9 +5,14 @@ import { Grabbables } from './core/Grabbables.js';
 import { Locomotion } from './core/Locomotion.js';
 import { AudioManager } from './core/AudioManager.js';
 import { BlobShadows } from './core/Shadows.js';
+import { Hands } from './core/Hands.js';
+import { Comfort } from './core/Comfort.js';
+import { settings } from './core/settings.js';
+import { SettingsPanel } from './components/SettingsPanel.js';
 import { initEnvironment } from './core/environment.js';
 import { loadFonts } from './core/textures.js';
 import { Tent, TENT_RADIUS } from './env/Tent.js';
+import { Midway } from './env/Midway.js';
 import { ComingSoonBooth } from './components/BoothBase.js';
 import { ExitBell } from './components/ExitBell.js';
 import { BallTossGame } from './games/BallTossGame.js';
@@ -38,6 +43,10 @@ const audio = new AudioManager(world.camera, world.scene);
 const grabbables = new Grabbables(world, input, audio);
 const locomotion = new Locomotion(world, input);
 const shadows = new BlobShadows(world);
+// big white carnival gloves for your hands + the comfort vignette
+const hands = new Hands(world, input, grabbables);
+const comfort = new Comfort(world, input, locomotion);
+audio.setMusicEnabled(settings.data.music);
 
 // bake the carnival-toned env map (one-off, ~ms) so every shiny material
 // built after this picks up real reflections
@@ -46,6 +55,8 @@ initEnvironment(world.renderer);
 world.physics.boundsRadius = TENT_RADIUS - 0.2;
 
 const tent = new Tent(world);
+// the night midway outside — visible through the doorway and wall windows
+const midway = new Midway(world, audio);
 
 /** everything a booth needs, in one bag */
 const deps = { world, input, audio, grabbables, locomotion, shadows };
@@ -91,6 +102,12 @@ const exitBell = new ExitBell(deps, { onExit: exitExperience });
 exitBell.group.position.set(-0.55, 0, 0.7);
 exitBell.group.rotation.y = -0.5;           // angle the sign toward the spawn
 world.scene.add(exitBell.group);
+
+// ---- operator panel (comfort / snap / music) beside the pole --------------
+const settingsPanel = new SettingsPanel(deps);
+settingsPanel.group.position.set(0.8, 0, -0.65);
+settingsPanel.group.rotation.y = 0.35;      // face the spawn point
+world.scene.add(settingsPanel.group);
 
 async function boot() {
   await audio.load();
@@ -143,4 +160,7 @@ boot();
 world.start();
 
 // dev convenience: expose for console poking
-window.__carnival = { world, games, tent, input, deps, exitBell, exitExperience };
+window.__carnival = {
+  world, games, tent, midway, input, deps, exitBell, exitExperience,
+  hands, comfort, settingsPanel, settings,
+};

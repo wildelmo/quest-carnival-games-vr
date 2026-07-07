@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import {
   stripesTexture, canopyTexture, signTexture, signPanelMaterials,
-  barberPoleTexture, woodFloorMaps, floorVignetteTexture, CARNIVAL_PALETTE,
+  barberPoleTexture, woodTexture, woodFloorMaps, floorVignetteTexture, CARNIVAL_PALETTE,
 } from '../core/textures.js';
 import { shiny, makeGlowPoints, glowTexture } from '../core/environment.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /**
  * Tent — the funhouse big-top everything lives inside.
@@ -29,6 +30,17 @@ const PEAK_HEIGHT = 6.6;
 export const PAD_COUNT = 6;
 /** distance from centre to a booth front edge */
 export const PAD_RADIUS = 4.6;
+/** pad-angle of the entrance doorway (slot 3 of 7) — the midway outside is
+ *  laid out along this axis so the Ferris wheel lines up with the doorway */
+export const ENTRANCE_ANGLE = (3 / 7) * Math.PI * 2;
+
+// laced canvas windows sit at every slot boundary (between the booths and
+// flanking the entrance), plus the doorway itself is a real opening now
+const WINDOW_SILL = 1.15;
+const WINDOW_TOP = 2.15;
+const WINDOW_WIDTH = 1.5;   // metres of arc
+const DOOR_WIDTH = 1.84;
+const DOOR_TOP = 2.5;
 
 export class Tent {
   /** @param {import('../core/World.js').World} world */
@@ -87,14 +99,12 @@ export class Tent {
     vignette.position.y = 0.002;
     this.group.add(vignette);
 
-    // canvas drum wall (striped), open-topped cylinder viewed from inside
-    const wall = new THREE.Mesh(
-      new THREE.CylinderGeometry(TENT_RADIUS, TENT_RADIUS, WALL_HEIGHT, 24, 1, true),
-      new THREE.MeshLambertMaterial({ map: stripesTexture('#a3173a', '#efe2c8', 4), side: THREE.BackSide }),
-    );
-    wall.material.map.repeat.set(6, 1);
-    wall.position.y = WALL_HEIGHT / 2;
-    this.group.add(wall);
+    // canvas drum wall (striped) — built as arcs with REAL openings punched
+    // through it: a window between each pair of booths and a doorway at the
+    // entrance slot, so the night midway outside shows through
+    const openings = this.#wallOpenings();
+    this.group.add(this.#buildWall(openings));
+    this.#buildWindowFrames(openings);
 
     // conical roof
     const roof = new THREE.Mesh(
@@ -124,6 +134,113 @@ export class Tent {
     );
     collar.position.y = 0.05;
     this.group.add(collar);
+  }
+
+  /**
+   * Openings in the drum wall, in pad-angle space (position on the wall at
+   * angle a is (sin a · R, -cos a · R)): the doorway at the entrance slot
+   * plus a laced canvas window at every slot boundary.
+   */
+  #wallOpenings() {
+    const list = [{
+      angle: ENTRANCE_ANGLE,
+      halfArc: (DOOR_WIDTH / 2) / TENT_RADIUS,
+      y0: 0, y1: DOOR_TOP, door: true,
+    }];
+    for (let b = 0.5; b < 7; b++) {
+      list.push({
+        angle: (b / 7) * Math.PI * 2,
+        halfArc: (WINDOW_WIDTH / 2) / TENT_RADIUS,
+        y0: WINDOW_SILL, y1: WINDOW_TOP, door: false,
+      });
+    }
+    return list.sort((p, q) => p.angle - q.angle);
+  }
+
+  /**
+   * The striped canvas drum as one merged geometry of wall arcs: full-height
+   * runs between openings, sill/header strips around them. Stripe UVs are
+   * baked from the absolute angle so the pattern stays continuous across
+   * every cut (6 texture repeats = 24 stripes, same as the old cylinder).
+   */
+  #buildWall(openings) {
+    const R = TENT_RADIUS;
+    const pos = [], nrm = [], uv = [], idx = [];
+    const addArc = (a0, a1, y0, y1) => {
+      if (a1 - a0 < 1e-4 || y1 - y0 < 1e-3) return;
+      const segs = Math.max(1, Math.ceil((a1 - a0) / (Math.PI / 24)));
+      const base = pos.length / 3;
+      for (let i = 0; i <= segs; i++) {
+        const a = a0 + ((a1 - a0) / segs) * i;
+        const sx = Math.sin(a), cz = -Math.cos(a);
+        pos.push(sx * R, y0, cz * R, sx * R, y1, cz * R);
+        nrm.push(-sx, 0, -cz, -sx, 0, -cz);      // inward
+        const u = (a / (Math.PI * 2)) * 6;
+        uv.push(u, y0 / WALL_HEIGHT, u, y1 / WALL_HEIGHT);
+      }
+      for (let i = 0; i < segs; i++) {
+        const k = base + i * 2;
+        idx.push(k, k + 2, k + 1, k + 1, k + 2, k + 3);
+      }
+    };
+    for (let i = 0; i < openings.length; i++) {
+      const o = openings[i];
+      const next = openings[(i + 1) % openings.length];
+      if (o.y0 > 0.01) addArc(o.angle - o.halfArc, o.angle + o.halfArc, 0, o.y0);
+      addArc(o.angle - o.halfArc, o.angle + o.halfArc, o.y1, WALL_HEIGHT);
+      const endA = next.angle - next.halfArc + (i === openings.length - 1 ? Math.PI * 2 : 0);
+      addArc(o.angle + o.halfArc, endA, 0, WALL_HEIGHT);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    geo.setIndex(idx);
+    return new THREE.Mesh(geo, new THREE.MeshLambertMaterial({
+      map: stripesTexture('#a3173a', '#efe2c8', 4), side: THREE.DoubleSide,
+    }));
+  }
+
+  /**
+   * Wooden frames + rolled-up canvas flaps around the window openings —
+   * all frames merge into one mesh, all flaps into another (two draw calls).
+   */
+  #buildWindowFrames(openings) {
+    const frames = [], flaps = [];
+    const _m = new THREE.Matrix4();
+    for (const o of openings) {
+      if (o.door) continue;
+      const w = o.halfArc * 2 * TENT_RADIUS;
+      const h = o.y1 - o.y0;
+      // local frame at the wall point: +Z toward the tent centre
+      const place = new THREE.Matrix4()
+        .makeTranslation(Math.sin(o.angle) * (TENT_RADIUS - 0.04), 0,
+          -Math.cos(o.angle) * (TENT_RADIUS - 0.04))
+        .multiply(new THREE.Matrix4().makeRotationY(-o.angle));
+      const part = (arr, geo, x, y, z, rz = 0) => {
+        geo.applyMatrix4(_m.makeRotationZ(rz));
+        geo.applyMatrix4(_m.makeTranslation(x, y, z));
+        geo.applyMatrix4(place);
+        arr.push(geo);
+      };
+      const cy = (o.y0 + o.y1) / 2;
+      part(frames, new THREE.BoxGeometry(w + 0.26, 0.12, 0.14), 0, o.y1 + 0.05, 0);
+      part(frames, new THREE.BoxGeometry(w + 0.26, 0.1, 0.22), 0, o.y0 - 0.05, 0.03);
+      part(frames, new THREE.BoxGeometry(0.12, h + 0.2, 0.14), -(w / 2 + 0.06), cy, 0);
+      part(frames, new THREE.BoxGeometry(0.12, h + 0.2, 0.14), w / 2 + 0.06, cy, 0);
+      // the rolled-up window flap resting on the lintel
+      const roll = new THREE.CylinderGeometry(0.09, 0.09, w + 0.1, 10);
+      part(flaps, roll, 0, o.y1 + 0.19, 0.01, Math.PI / 2);
+    }
+    const frameMesh = new THREE.Mesh(
+      mergeGeometries(frames),
+      new THREE.MeshLambertMaterial({ map: woodTexture('#5d3b20') }),
+    );
+    const flapMesh = new THREE.Mesh(
+      mergeGeometries(flaps),
+      new THREE.MeshLambertMaterial({ color: 0x77203a }),
+    );
+    this.group.add(frameMesh, flapMesh);
   }
 
   #buildLighting() {
@@ -313,7 +430,7 @@ export class Tent {
 
   /** Entrance archway with parted curtains at the reserved slot. */
   #buildEntrance() {
-    const angle = (3 / 7) * Math.PI * 2;
+    const angle = ENTRANCE_ANGLE;
     const g = new THREE.Group();
     g.position.set(Math.sin(angle) * (TENT_RADIUS - 0.2), 0, -Math.cos(angle) * (TENT_RADIUS - 0.2));
     g.rotation.y = -angle; // face centre

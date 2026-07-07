@@ -12,6 +12,10 @@ import { shiny } from '../core/environment.js';
 
 const _v1 = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
+const _v3 = new THREE.Vector3();
+
+/** all live buttons — desktop E-presses go to the best-aimed one only */
+const allButtons = [];
 
 export class PushButton {
   /**
@@ -66,7 +70,25 @@ export class PushButton {
       this.group.add(plaque);
     }
 
+    allButtons.push(this);
     world.onUpdate((dt) => this.#update(dt));
+  }
+
+  /**
+   * Desktop aim quality: { dist, err } — distance to the dome and how far
+   * off the view ray it sits (1 = dead centre). Used to route an E press
+   * to the button the player is actually looking at, which matters on the
+   * operator panel where three domes sit side by side.
+   */
+  #desktopAim() {
+    this.group.getWorldPosition(_v1);
+    _v1.y += 0.05;
+    const head = this.world.camera;
+    head.getWorldPosition(_v2);
+    const dist = _v2.distanceTo(_v1);
+    head.getWorldDirection(_v3);
+    _v1.sub(_v2).normalize();
+    return { dist, err: _v1.dot(_v3) };
   }
 
   #update(dt) {
@@ -89,11 +111,17 @@ export class PushButton {
         }
       }
     } else {
-      // desktop: E while looking roughly at the button from close range
-      const head = this.world.camera;
-      head.getWorldPosition(_v2);
-      if (_v2.distanceTo(_v1) < 2.2 && this.input.consumeInteract()) {
-        this.#press(null);
+      // desktop: E while looking at the button from close range — and only
+      // if no other in-range button sits closer to the view ray (the
+      // operator panel has three domes side by side)
+      const { dist, err } = this.#desktopAim();
+      if (dist < 2.2 && err > 0.86) {
+        for (const other of allButtons) {
+          if (other === this || !other.enabled) continue;
+          const oa = other.#desktopAim();
+          if (oa.dist < 2.2 && oa.err > err) return;
+        }
+        if (this.input.consumeInteract()) this.#press(null);
       }
     }
   }
