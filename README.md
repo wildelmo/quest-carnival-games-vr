@@ -127,12 +127,15 @@ haptics, and locomotion blockers.
 
 ## Audio
 
-Every game event uses real recorded/designed samples — **CC0 packs from
-Kenney.nl** (including the Impact Sounds pack: real glass clinks for rings
-clattering off the bottle field, heavy punch impacts for the catcher's-mitt
-thud of a knockdown) plus **recorded balloon bursts** (MIT, from the
-Super-Darts project) — with random variation and pitch jitter; the music is
-a free ragtime track by **Anttis Instrumentals**. Two ambience beds (crowd
-murmur, ball rolling) are synthesized at runtime and can be replaced by
-dropping real files into `public/assets/sounds/` — see `CREDITS.md` for
-the full mapping and swap paths.
+The soundscape is **diegetic-only**: no scoring chimes, round bells or
+jingles — the scoreboard is the feedback, and everything you hear is a
+physical event in the booth. All of it is real recorded samples — **CC0
+packs from Kenney.nl** (Impact Sounds: glass clinks for rings clattering
+off the bottle field, heavy punch impacts for the catcher's-mitt thud of a
+knockdown, wood knocks for darts thunking into cork) plus **recorded
+balloon bursts** (MIT, from the Super-Darts project) — with random
+variation and pitch jitter; the music is a free ragtime track by **Anttis
+Instrumentals**. Two ambience beds (crowd murmur, ball rolling) are
+synthesized at runtime and can be replaced by dropping real files into
+`public/assets/sounds/` — see `CREDITS.md` for the full mapping and swap
+paths.

@@ -217,10 +217,11 @@ export class BallTossGame extends MiniGame {
       target.angVel = -impact * 1.4;
       target.collider.enabled = false;
       this._downCount++;
-      // recorded heavy punch carries the weight; the foam slap sits on top
-      audio.play('mittThud', { at: target.worldPos, volume: Math.min(1, 0.55 + impact / 8) });
-      audio.play('hit', { at: target.worldPos, volume: Math.min(0.5, impact / 10) });
-      audio.play('fall', { at: target.worldPos, volume: 0.7, rate: 1.1 });
+      // recorded heavy punch carries the weight; a quiet wood clack is the
+      // doll slamming back against its shelf. Nothing synthetic.
+      audio.play('mittThud', { at: target.worldPos,
+        volume: Math.min(1, 0.6 + impact / 8), refDistance: 2.6, rolloff: 1.1 });
+      audio.play('knock', { at: target.worldPos, volume: 0.3, rate: 0.9, jitter: 0.12 });
       if (this.state === 'running') {
         this.addScore(target.points, target.worldPos);
         if (this._downCount >= ROWS * COLS) {
@@ -231,8 +232,7 @@ export class BallTossGame extends MiniGame {
     } else {
       // glancing blow: satisfying wobble but no points
       target.wobbleVel += impact * 3.5 * (Math.random() > 0.5 ? 1 : -1);
-      audio.play('mittThudSoft', { at: target.worldPos, volume: 0.45 });
-      audio.play('hit', { at: target.worldPos, volume: 0.25, rate: 1.25 });
+      audio.play('mittThudSoft', { at: target.worldPos, volume: 0.5, refDistance: 2.2 });
     }
   }
 
@@ -368,8 +368,8 @@ export class BallTossGame extends MiniGame {
       body.onImpact = (speed, tag) => {
         if (this._now - lastSound < 0.09 || tag === 'ball' || tag === 'target') return;
         lastSound = this._now;
-        audio.play('thud',
-          { at: mesh.getWorldPosition(_v1).clone(), volume: Math.min(0.9, speed / 6), rate: 1.15 });
+        audio.play('knock',
+          { at: mesh.getWorldPosition(_v1).clone(), volume: Math.min(0.9, speed / 6), jitter: 0.12 });
       };
 
       const ball = {
@@ -438,7 +438,9 @@ export class BallTossGame extends MiniGame {
     // gentle pour toward the tray centre — the mouth already sits above the
     // tray, so a soft nudge is enough to drop the ball in and let it settle
     ball.body.velocity.copy(this.#localDir(0.6, 0.15, 0));
-    this.deps.audio.play('dispense', { at: mouth, volume: 0.6, rate: 1.3 });
+    // soft contact tick as the ball tips out of the pipe — the tray thud
+    // itself comes from the physics impact when it lands
+    this.deps.audio.play('tick', { at: mouth, volume: 0.35, rate: 0.85, jitter: 0.15 });
   }
 
   onUpdate(dt, t) {
@@ -502,7 +504,8 @@ export class BallTossGame extends MiniGame {
             target.collider.enabled = true;
             this._downCount--;
             if (played++ < 3) {
-              this.deps.audio.play('targetUp', { at: target.worldPos, volume: 0.35, rate: 1.4 });
+              // doll clunks upright against its stop — real wood, no blip
+              this.deps.audio.play('knock', { at: target.worldPos, volume: 0.25, rate: 1.15, jitter: 0.12 });
             }
           }
           break;

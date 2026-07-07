@@ -317,7 +317,7 @@ export class BalloonDartGame extends MiniGame {
     if (vel.length() < 1.2) return;
     this.tryStart(); // the first real throw begins the round
     dart.velocity.multiplyScalar(1.05);
-    this.deps.audio.play('dispense', { volume: 0.15, rate: 2.2 }); // faint whoosh
+    // a thrown dart is silent — you only hear where it lands
   }
 
   #rackDart(dart, instant = false) {
@@ -325,7 +325,7 @@ export class BalloonDartGame extends MiniGame {
     dart.mesh.position.copy(this.booth.group.localToWorld(dart.rackPosLocal.clone()));
     // lying flat in the tray, needle aimed at the board
     this.booth.group.getWorldQuaternion(dart.mesh.quaternion);
-    if (!instant) this.deps.audio.play('targetUp', { at: dart.mesh, volume: 0.2, rate: 1.8 });
+    if (!instant) this.deps.audio.play('tick', { at: dart.mesh, volume: 0.2, jitter: 0.15 });
   }
 
   #popBalloon(balloon, popPos) {
@@ -335,7 +335,6 @@ export class BalloonDartGame extends MiniGame {
     this.#burstShards(popPos, balloon.mesh.material.color);
     if (this.state === 'running') {
       this.addScore(balloon.points, null);
-      if (balloon.gold) this.deps.audio.play('win', { volume: 0.5, rate: 1.4 });
       if (this.balloons.every(b => !b.alive)) {
         this.score += CLEAR_BONUS;
         this.endRound('cleared');
@@ -392,7 +391,7 @@ export class BalloonDartGame extends MiniGame {
             d.mesh.position.y = rest;
             d.state = 'fallen';
             d.rerackAt = t + RERACK_DELAY;
-            this.deps.audio.play('thud', { at: d.mesh, volume: 0.25, rate: 1.6 });
+            this.deps.audio.play('tick', { at: d.mesh, volume: 0.3, rate: 0.9, jitter: 0.15 });
           }
           break;
         }
@@ -456,11 +455,15 @@ export class BalloonDartGame extends MiniGame {
           // 0.1 ahead of the origin), keeping its flight heading
           _v3.z = FACE + 0.08;
           d.mesh.position.copy(this.board.localToWorld(_v3.clone()));
-          this.deps.audio.play('dartStick', { at: d.mesh, volume: 0.55, rate: 1.5 });
+          // real wood knock, pitched up a touch — dart thunking into cork.
+          // Big refDistance so the thunk carries back to the throwing line.
+          this.deps.audio.play('knock',
+            { at: d.mesh, volume: 0.8, rate: 1.35, jitter: 0.1, refDistance: 3.5, rolloff: 1.0 });
         } else {
-          // bounced off
+          // bounced off — dull rap on the boards, no buzzer
           d.velocity.multiplyScalar(-0.2);
-          this.deps.audio.play('miss', { at: d.mesh, volume: 0.3, rate: 1.4 });
+          this.deps.audio.play('knock',
+            { at: d.mesh, volume: 0.35, rate: 1.05, jitter: 0.12, refDistance: 3.5, rolloff: 1.0 });
         }
       }
     }
@@ -518,13 +521,11 @@ export class BalloonDartGame extends MiniGame {
       b.inflateT = 0;
       b.mesh.visible = true;
       b.mesh.scale.setScalar(0.08);
-      // nozzle hiss, pitch rising with the balloon
-      this.deps.audio.play('inflate', { at: b.worldPos, volume: 0.45, rate: 0.9, jitter: 0.15 });
+      // re-inflation is visual only — 35 blips in a row was pure arcade noise
     }
     // reset finished?
     if (this.state === 'resetting' && this._inflateQueue.length === 0 &&
         this.balloons.every(b => b.alive && b.inflate >= 1)) {
-      this.deps.audio.play('bell', { at: this.booth.group, volume: 0.5, rate: 1.2 });
       this.finishReset();
     }
   }

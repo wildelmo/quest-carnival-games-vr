@@ -15,17 +15,9 @@ this Kenney subset under the same CC0 license.
 
 | File(s) | Used for |
 |---|---|
-| `hit1-3.wav` | ball smacking a target |
-| `rockHit2.wav` | heavy thuds, gutter clunk |
-| `fall1-2.wav` | targets flopping backwards |
-| `coin1/2/4.wav` | score points |
-| `secret2.wav`, `secret4.wav` | round-start bell |
-| `upgrade1.wav`, `upgrade4.wav` | win jingle / clear-the-board fanfare |
-| `gameover3.wav`, `lose4.wav`, `error1.wav` | round end / miss |
-| `phaseJump1.wav` | ball dispenser, balloon-nozzle inflate |
-| `jump1.wav`, `jump3.wav` | target winch, dart sticking in cork |
-| `explosion1-2.wav` | currently unused (kept for future booths) |
-| `laser1.wav` | reserved for the future duck-shooting gallery |
+| `rockHit2.wav` | gutter/grate clunk in the ball toss |
+| `secret2.wav` | the brass EXIT bell prop |
+| `hit/fall/coin/jump/upgrade/gameover/lose/error/phaseJump/explosion/laser/secret4` | unused — gameplay is diegetic-only now (no chimes or jingles); kept on disk for future booths |
 
 ### Kenney "Impact Sounds" pack (CC0)
 
@@ -44,6 +36,8 @@ peak-normalized for the game; original files named `impact_glass_*` /
 | `glassHeavy1-5.wav` | hard clanks into the packed bottle field |
 | `mittThud1-5.wav` | ball-toss knockdown — heavy catcher's-mitt body |
 | `mittThudSoft1-5.wav` | glancing ball hits that wobble a target |
+| `knock1-5.wav` (`impact_plank_*`) | dart thunking into the cork, dolls clacking upright, rings/balls rapping the stall woodwork |
+| `tick1-5.wav` (`impact_generic_light_*`) | rings settling flat, darts re-racking, ball chute, dome-button clack |
 
 ## Balloon pop — Super-Darts (MIT)
 

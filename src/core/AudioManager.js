@@ -17,34 +17,30 @@ import * as THREE from 'three';
  */
 
 // logical name -> sample files (first that loads wins for singles; arrays = random variation)
+//
+// DESIGN RULE: gameplay is diegetic-only. Nothing beeps, chimes or jingles —
+// scoring just updates the scoreboard, rounds start and end silently. The
+// only sounds are things physically happening in the booth (real recorded
+// impacts) plus the brass exit bell, which is an actual prop you pull.
+// The old Kenney digital blips stay in /public/assets/sounds for future use
+// but are deliberately not loaded here.
 const SAMPLES = {
-  // ball & dart impacts
-  hit:        ['hit1.wav', 'hit2.wav', 'hit3.wav'],  // foam-ball slap on a target
-  // heavy leather-glove body: recorded punch impacts (Kenney Impact Sounds, CC0),
-  // layered under `hit` so a knockdown lands with catcher's-mitt weight
+  // heavy leather body: recorded punch impacts (Kenney Impact Sounds, CC0) —
+  // a knockdown lands with catcher's-mitt weight
   mittThud:     ['mittThud1.wav', 'mittThud2.wav', 'mittThud3.wav', 'mittThud4.wav', 'mittThud5.wav'],
   mittThudSoft: ['mittThudSoft1.wav', 'mittThudSoft2.wav', 'mittThudSoft3.wav', 'mittThudSoft4.wav', 'mittThudSoft5.wav'],
-  thud:       ['rockHit2.wav'],                      // heavy knockdown thud
-  fall:       ['fall1.wav', 'fall2.wav'],            // target flopping backwards
-  dartStick:  ['jump3.wav'],                         // dart thunks into cork
+  thud:       ['rockHit2.wav'],                      // gutter/grate clunk
   // recorded glass impacts (Kenney Impact Sounds, CC0): rings clanking off
   // the soda-bottle field, graded light -> heavy by impact speed
   glassLight:  ['glassLight1.wav', 'glassLight2.wav', 'glassLight3.wav', 'glassLight4.wav', 'glassLight5.wav'],
   glassMedium: ['glassMedium1.wav', 'glassMedium2.wav', 'glassMedium3.wav', 'glassMedium4.wav', 'glassMedium5.wav'],
   glassHeavy:  ['glassHeavy1.wav', 'glassHeavy2.wav', 'glassHeavy3.wav', 'glassHeavy4.wav', 'glassHeavy5.wav'],
-  // scoring / UI
-  point:      ['coin1.wav', 'coin2.wav', 'coin4.wav'],
-  bell:       ['secret2.wav'],                       // round start bell
-  fanfare:    ['upgrade4.wav'],                      // clear-the-board fanfare
-  win:        ['upgrade1.wav'],
-  roundEnd:   ['gameover3.wav'],
-  miss:       ['error1.wav'],
-  lose:       ['lose4.wav'],
-  // machinery
-  dispense:   ['phaseJump1.wav'],                    // ball popping out of the chute
-  targetUp:   ['jump1.wav'],                         // winch pulling a target upright
-  inflate:    ['phaseJump1.wav'],                    // nozzle re-inflating a balloon
-  laser:      ['laser1.wav'],                        // reserved: duck gallery
+  // recorded wood-plank knocks (Kenney Impact Sounds, CC0): darts thunking
+  // into the cork, dolls clacking on shelves, rings rapping the stall
+  knock:      ['knock1.wav', 'knock2.wav', 'knock3.wav', 'knock4.wav', 'knock5.wav'],
+  // small recorded contact ticks: light object taps, button presses
+  tick:       ['tick1.wav', 'tick2.wav', 'tick3.wav', 'tick4.wav', 'tick5.wav'],
+  bell:       ['secret2.wav'],                       // the brass EXIT bell prop only
   // real recorded balloon bursts (Super-Darts, MIT) — sharp broadband crack
   pop:        ['balloonPop1.wav', 'balloonPop2.wav'],
 };
@@ -111,7 +107,8 @@ export class AudioManager {
   /**
    * Play a named sample.
    * @param {string} name key of SAMPLES
-   * @param {object} o { at?: THREE.Object3D|THREE.Vector3, volume?, rate?, detune? }
+   * @param {object} o { at?: THREE.Object3D|THREE.Vector3, volume?, rate?,
+   *                     jitter?, refDistance?, rolloff? }
    */
   play(name, o = {}) {
     const list = (this.buffers.get(name) || []).filter(Boolean);
@@ -124,8 +121,8 @@ export class AudioManager {
       // positional one-shot: temporary PositionalAudio attached to the scene
       const audio = new THREE.PositionalAudio(this.listener);
       audio.setBuffer(buffer);
-      audio.setRefDistance(1.6);
-      audio.setRolloffFactor(1.4);
+      audio.setRefDistance(o.refDistance ?? 1.6);
+      audio.setRolloffFactor(o.rolloff ?? 1.4);
       audio.setVolume(volume);
       audio.setPlaybackRate(rate);
       const parent = o.at.isObject3D ? o.at : null;
@@ -149,9 +146,10 @@ export class AudioManager {
   }
 
   /** Balloon pop: real recorded bursts, played near natural pitch — the
-   *  recordings carry their own broadband crack, no synth layer needed. */
+   *  recordings carry their own broadband crack, no synth layer needed.
+   *  A big refDistance keeps the bang loud from throwing distance. */
   playPop(at) {
-    this.play('pop', { at, volume: 0.95, rate: 1.0, jitter: 0.08 });
+    this.play('pop', { at, volume: 1.0, rate: 1.0, jitter: 0.06, refDistance: 4.5, rolloff: 1.0 });
   }
 
   /**

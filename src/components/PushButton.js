@@ -102,7 +102,8 @@ export class PushButton {
     this._cooldown = 0.6;
     this._pressDepth = 0.02;
     if (hand) hand.pulse(0.8, 60);
-    this.audio.play('point', { at: this.group, volume: 0.5, rate: 0.7 });
+    // mechanical clack of the dome button, not a coin blip
+    this.audio.play('tick', { at: this.group, volume: 0.5, rate: 0.75, jitter: 0.08 });
     if (this.onPress) this.onPress();
   }
 }
