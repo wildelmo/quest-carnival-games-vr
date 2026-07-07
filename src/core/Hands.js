@@ -18,6 +18,40 @@ const GLOVE_WHITE = 0xf2ece0;
 const BAND_COLORS = { left: 0x2f6fff, right: 0xff7a30 };
 const _vOffset = new THREE.Vector3();
 
+/**
+ * Grip-space alignment.
+ *
+ * The glove is modelled in a plain "hand flat on a table" space: fingers
+ * reach along -Z, the palm faces -Y, the wrist/cuff sits toward +Z, and the
+ * thumb hangs off -X for the right hand / +X for the left (hold your right
+ * hand out palm-down: the thumb is on the left).
+ *
+ * WebXR's grip space (which mirrors OpenXR's grip pose) is anatomical, not
+ * screen-like: the origin sits at the fist centroid, +X is the palm normal
+ * (the LEFT palm faces +X, the RIGHT palm faces -X), and -Z runs through
+ * the fist from little finger to thumb — with your hand in a handshake
+ * pose, -Z points straight up out of the top of your fist and the extended
+ * fingers point along -Y. Attaching the model unrotated therefore draws the
+ * fingers sticking straight UP with the palm facing forward — the classic
+ * "peace sign glove" bug. These bases rotate model axes onto grip axes so
+ * the glove lies over the real hand: fingers land on -Y (out past the
+ * knuckles), the palm on the correct ∓X side, the thumb on -Z (up, by the
+ * thumbstick), and the finger-curl hinge (model X) lands on grip Z so
+ * curling fingers wrap around the controller handle like a real grip.
+ */
+const GRIP_ALIGN = {
+  right: new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(
+    new THREE.Vector3(0, 0, 1),    // model +X (across the knuckles) → grip +Z
+    new THREE.Vector3(1, 0, 0),    // model +Y (back of hand)        → grip +X
+    new THREE.Vector3(0, 1, 0),    // model +Z (toward the wrist)    → grip +Y
+  )),
+  left: new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(
+    new THREE.Vector3(0, 0, -1),   // model +X (across the knuckles) → grip -Z
+    new THREE.Vector3(-1, 0, 0),   // model +Y (back of hand)        → grip -X
+    new THREE.Vector3(0, 1, 0),    // model +Z (toward the wrist)    → grip +Y
+  )),
+};
+
 // finger segment sizes (metres)
 const SEG1 = { r: 0.0165, len: 0.034 };
 const SEG2 = { r: 0.0155, len: 0.026 };
@@ -31,16 +65,14 @@ function capsuleAlongMinusZ({ r, len }) {
 
 /**
  * Build one glove. Returns { group, setCurl(k), setHover(on, t), curl }.
- * The group is oriented for a controller grip space: fingers reach along
- * -Z (away from the wrist) and curl toward the palm.
+ * The group is in model space — fingers along -Z, palm facing -Y, wrist at
+ * +Z (see GRIP_ALIGN, which maps this onto XR grip space).
  */
 function buildGlove(handedness) {
   const white = new THREE.MeshLambertMaterial({ color: GLOVE_WHITE });
   const group = new THREE.Group();
   group.name = `glove-${handedness}`;
-  // tilt the whole hand the way a relaxed hand actually sits on the grip
   const wrap = new THREE.Group();
-  wrap.rotation.x = 0.36;
   wrap.scale.setScalar(0.88);
   group.add(wrap);
 
@@ -90,11 +122,14 @@ function buildGlove(handedness) {
     fingers.push({ root, mid });
   }
 
-  // thumb — one stubby segment + tip, off the palm's side
-  const side = handedness === 'left' ? -1 : 1;
+  // thumb — one stubby segment + tip, off the palm's side. In model space
+  // (palm down, fingers away from you) the RIGHT hand's thumb is on the -X
+  // side and the LEFT hand's on +X — getting this backwards is what makes
+  // gloves read as swapped hands.
+  const side = handedness === 'left' ? 1 : -1;
   const thumbRoot = new THREE.Group();
   thumbRoot.position.set(side * 0.04, -0.006, -0.018);
-  thumbRoot.rotation.y = side * 0.95;
+  thumbRoot.rotation.y = -side * 0.95;   // splay outward, away from the palm
   const thumb = new THREE.Mesh(capsuleAlongMinusZ({ r: 0.017, len: 0.024 }), white);
   thumbRoot.add(thumb);
   const thumbMid = new THREE.Group();
@@ -113,7 +148,7 @@ function buildGlove(handedness) {
         f.mid.rotation.x = -(0.1 + k * 1.42);
       }
       thumbRoot.rotation.x = -(0.08 + k * 0.55);
-      thumbRoot.rotation.y = side * (0.95 - k * 0.4);
+      thumbRoot.rotation.y = -side * (0.95 - k * 0.4);
       thumbMid.rotation.x = -(0.06 + k * 0.7);
     },
     setHover(on, t) {
@@ -152,6 +187,11 @@ export class Hands {
         }
         if (!glove) {
           glove = this._gloves[hand.index] = buildGlove(hand.handedness);
+          // rotate the model onto the anatomical grip frame (see GRIP_ALIGN);
+          // the desktop glove below skips this — its quaternion is copied
+          // from the camera every frame, where model space already reads as
+          // a natural held-out hand
+          glove.group.quaternion.copy(GRIP_ALIGN[hand.handedness] ?? GRIP_ALIGN.right);
           hand._grip.add(glove.group);
         }
         glove.group.visible = true;

@@ -72,7 +72,7 @@ export class AudioManager {
     this._crowdNodes = null;
   }
 
-  /** Operator-panel music toggle (ambience beds are the world — they stay). */
+  /** Music toggle (ambience beds are the world — they stay). */
   setMusicEnabled(on) {
     this._musicOn = on;
     if (this._musicSound?.buffer) this._musicSound.setVolume(on ? 0.35 : 0);

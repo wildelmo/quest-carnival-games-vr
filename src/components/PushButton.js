@@ -77,8 +77,8 @@ export class PushButton {
   /**
    * Desktop aim quality: { dist, err } — distance to the dome and how far
    * off the view ray it sits (1 = dead centre). Used to route an E press
-   * to the button the player is actually looking at, which matters on the
-   * operator panel where three domes sit side by side.
+   * to the button the player is actually looking at when several domes
+   * are in range at once.
    */
   #desktopAim() {
     this.group.getWorldPosition(_v1);
@@ -112,8 +112,7 @@ export class PushButton {
       }
     } else {
       // desktop: E while looking at the button from close range — and only
-      // if no other in-range button sits closer to the view ray (the
-      // operator panel has three domes side by side)
+      // if no other in-range button sits closer to the view ray
       const { dist, err } = this.#desktopAim();
       if (dist < 2.2 && err > 0.86) {
         for (const other of allButtons) {

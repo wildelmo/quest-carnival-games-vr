@@ -45,11 +45,6 @@ A brass **EXIT bell** on a striped post by the tent's centre pole ends the
 experience — pull its cord (or press `E` on desktop) to ring out, drop back
 to the splash screen and pause the audio.
 
-Next to it, the **OPERATOR PANEL** holds the player settings as three
-pokeable dome buttons: the comfort vignette (irises in during smooth
-locomotion), the snap-turn angle (30°/45°) and the bandstand music.
-Choices persist across visits via localStorage.
-
 ![Ball toss booth](docs/balltoss.png)
 ![Balloon dart booth](docs/darts.png)
 
@@ -92,7 +87,7 @@ src/
     Grabbables.js    grip-to-grab, swing-and-release throwing, hover affordance
     Locomotion.js    smooth walk, snap turn, teleport arc, no-go zones
     Hands.js         procedural carnival gloves with analog finger curl
-    Comfort.js       locomotion vignette iris (toggle on the operator panel)
+    Comfort.js       locomotion vignette iris during smooth walking
     settings.js      persistent player settings (localStorage)
     AudioManager.js  positional CC0 samples + synthesized ambience beds
     textures.js      every texture, generated on <canvas> at load
@@ -102,7 +97,6 @@ src/
     BoothBase.js     stall structure, awning, sign, prize shelf, blockers
     Scoreboard.js    canvas-texture score / timer / status panel
     PushButton.js    pokeable arcade dome button
-    SettingsPanel.js the operator panel: comfort / snap / music buttons
   env/
     Tent.js          the big-top: shell (with windows + doorway), lights,
                      bunting, entrance, pads

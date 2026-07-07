@@ -4,7 +4,7 @@ import { settings } from './settings.js';
 /**
  * Comfort — a soft vignette iris that fades in while you smooth-walk in VR
  * and melts away the moment you stop. The single biggest motion-comfort
- * feature on Quest; off by a toggle on the operator panel for players who
+ * feature on Quest; the settings store can turn it off for players who
  * don't need it. Desktop mode never shows it.
  *
  * Implementation: one camera-attached quad with a radial "clear centre,
