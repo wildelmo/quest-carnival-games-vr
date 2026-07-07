@@ -156,8 +156,8 @@ export class ExitBell {
         }
       }
     } else {
-      // close range AND actually looking at the bell — the operator panel
-      // lives nearby, and an E meant for it must never ring you out
+      // close range AND actually looking at the bell — an E meant for a
+      // nearby booth button must never ring you out
       this.world.camera.getWorldPosition(_v1);
       if (_v1.distanceTo(this._cordWorld) < 2.4) {
         this.world.camera.getWorldDirection(_v2);

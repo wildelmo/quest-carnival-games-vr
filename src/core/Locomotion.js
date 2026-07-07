@@ -131,7 +131,7 @@ export class Locomotion {
       this.#moveRig(_v1.x * WALK_SPEED * dt, _v1.z * WALK_SPEED * dt);
     }
 
-    // ---- snap turn (right stick x) — angle comes from the operator panel
+    // ---- snap turn (right stick x) — angle comes from settings
     if (Math.abs(right.stick.x) > 0.6) {
       if (this._snapReady) {
         this._snapReady = false;

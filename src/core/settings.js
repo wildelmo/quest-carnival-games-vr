@@ -1,8 +1,8 @@
 /**
- * settings — tiny persistent store for the player-facing options on the
- * operator panel. Values survive sessions via localStorage; systems either
- * read `settings.data.X` live each frame (vignette, snap angle) or
- * subscribe with onChange (music).
+ * settings — tiny persistent store for player-facing options (comfort
+ * vignette, snap-turn angle, music). Values survive sessions via
+ * localStorage; systems either read `settings.data.X` live each frame
+ * (vignette, snap angle) or subscribe with onChange (music).
  */
 
 const KEY = 'carnival.settings.v1';
