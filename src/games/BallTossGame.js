@@ -217,7 +217,9 @@ export class BallTossGame extends MiniGame {
       target.angVel = -impact * 1.4;
       target.collider.enabled = false;
       this._downCount++;
-      audio.play('hit', { at: target.worldPos, volume: Math.min(1, impact / 5) });
+      // recorded heavy punch carries the weight; the foam slap sits on top
+      audio.play('mittThud', { at: target.worldPos, volume: Math.min(1, 0.55 + impact / 8) });
+      audio.play('hit', { at: target.worldPos, volume: Math.min(0.5, impact / 10) });
       audio.play('fall', { at: target.worldPos, volume: 0.7, rate: 1.1 });
       if (this.state === 'running') {
         this.addScore(target.points, target.worldPos);
@@ -229,7 +231,8 @@ export class BallTossGame extends MiniGame {
     } else {
       // glancing blow: satisfying wobble but no points
       target.wobbleVel += impact * 3.5 * (Math.random() > 0.5 ? 1 : -1);
-      audio.play('hit', { at: target.worldPos, volume: 0.35, rate: 1.25 });
+      audio.play('mittThudSoft', { at: target.worldPos, volume: 0.45 });
+      audio.play('hit', { at: target.worldPos, volume: 0.25, rate: 1.25 });
     }
   }
 
@@ -359,12 +362,13 @@ export class BallTossGame extends MiniGame {
         gravityScale: 0.8, // light foam — flies flatter, much easier to aim
       });
       world.physics.addBody(body);
-      // impact noises, rate-limited per ball
+      // impact noises, rate-limited per ball. Target hits are voiced by the
+      // target collider's onHit (heavy mitt thud) — don't double them here.
       let lastSound = 0;
       body.onImpact = (speed, tag) => {
-        if (this._now - lastSound < 0.09 || tag === 'ball') return;
+        if (this._now - lastSound < 0.09 || tag === 'ball' || tag === 'target') return;
         lastSound = this._now;
-        audio.play(tag === 'target' ? 'hit' : 'thud',
+        audio.play('thud',
           { at: mesh.getWorldPosition(_v1).clone(), volume: Math.min(0.9, speed / 6), rate: 1.15 });
       };
 

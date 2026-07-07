@@ -337,13 +337,13 @@ export class RingTossGame extends MiniGame {
       if (Math.abs(p.x) > wallX) {
         p.x = Math.sign(p.x) * wallX;
         v.x *= -0.4;
-        this.#tink(p, 0.2);
+        this.#knock(p, 0.2);
       }
       const backZ = -this.booth.depth / 2 + 0.1;
       if (p.z < backZ) {
         p.z = backZ;
         v.z *= -0.4;
-        this.#tink(p, 0.25);
+        this.#knock(p, 0.25);
       }
     }
 
@@ -356,11 +356,11 @@ export class RingTossGame extends MiniGame {
     if (p.y < counterTop && v.z < 0 && p.z < counterFront && prevZ >= counterFront) {
       p.z = counterFront;
       v.z *= -0.35;
-      this.#tink(p, 0.2);
+      this.#knock(p, 0.2);
     } else if (p.y < counterTop && v.z > 0 && p.z > counterBack && prevZ <= counterBack) {
       p.z = counterBack;
       v.z *= -0.35;
-      this.#tink(p, 0.15);
+      this.#knock(p, 0.15);
     } else if (p.z > counterBack && p.z < counterFront && v.y < 0 &&
                ring.prevY >= counterTop + TUBE_R && p.y < counterTop + TUBE_R) {
       if (this.#trySettleFlat(ring, counterTop + TUBE_R, true)) return;
@@ -374,11 +374,12 @@ export class RingTossGame extends MiniGame {
       const wasInField = prevX > FIELD_MIN_X - RING_OUTER && prevX < FIELD_MAX_X + RING_OUTER &&
                          prevZ > FIELD_MIN_Z - RING_OUTER && prevZ < FIELD_MAX_Z + RING_OUTER;
       if (!wasInField && p.y < NECK_TOP) {
+        const slam = v.length();
         if (prevZ >= FIELD_MAX_Z + RING_OUTER) { p.z = FIELD_MAX_Z + RING_OUTER; v.z *= -0.3; }
         else if (prevX <= FIELD_MIN_X - RING_OUTER) { p.x = FIELD_MIN_X - RING_OUTER; v.x *= -0.3; }
         else if (prevX >= FIELD_MAX_X + RING_OUTER) { p.x = FIELD_MAX_X + RING_OUTER; v.x *= -0.3; }
         v.multiplyScalar(0.6);
-        this.#tink(p, 0.35);
+        this.#clink(p, Math.min(0.55, 0.3 + slam * 0.06), slam);
         this.#syncMesh(ring);
         return;
       }
@@ -415,7 +416,7 @@ export class RingTossGame extends MiniGame {
               (Math.random() - 0.5) * 0.7);
             ring.mesh.quaternion.premultiply(_q1);
             ring.bounces++;
-            this.#tink(p, Math.min(0.6, 0.25 + v.length() * 0.06));
+            this.#clink(p, Math.min(0.6, 0.25 + v.length() * 0.06), v.length());
             if (ring.bounces > MAX_BOUNCES || v.lengthSq() < 0.5) {
               this.#settleInValley(ring, p.x, p.z);
             } else {
@@ -510,6 +511,8 @@ export class RingTossGame extends MiniGame {
       then: () => {
         ring.state = 'ringed';
         const at = this.booth.group.localToWorld(new THREE.Vector3(bottle.x, NECK_TOP, bottle.z));
+        // ring slides down the neck and lands on the glass shoulder
+        this.deps.audio.play('glassLight', { at, volume: 0.4, jitter: 0.1 });
         this.deps.audio.play('point', { at, volume: 0.5, rate: 1.25 });
         if (bottle.gold) this.deps.audio.play('win', { at, volume: 0.6, rate: 1.3 });
         this.addScore(bottle.points, at);
@@ -536,7 +539,8 @@ export class RingTossGame extends MiniGame {
       then: () => {
         ring.state = 'resting';
         ring.playerSide = false;
-        this.deps.audio.play('thud', { at: ring.mesh, volume: 0.15, rate: 2.1 });
+        // wedged between the bottle shoulders — glass on glass
+        this.deps.audio.play('glassMedium', { at: ring.mesh, volume: 0.3, jitter: 0.1 });
       },
     });
   }
@@ -584,9 +588,17 @@ export class RingTossGame extends MiniGame {
     }
   }
 
-  #tink(localPos, volume) {
+  /** ring clanking off the glass: light/medium/heavy by how hard it hit */
+  #clink(localPos, volume, speed = 1) {
     const at = this.booth.group.localToWorld(localPos.clone());
-    this.deps.audio.play('point', { at, volume, rate: 1.8, jitter: 0.12 });
+    const name = speed > 2.6 ? 'glassHeavy' : speed > 1.2 ? 'glassMedium' : 'glassLight';
+    this.deps.audio.play(name, { at, volume, jitter: 0.1 });
+  }
+
+  /** ring knocking the booth woodwork (walls, counter faces) */
+  #knock(localPos, volume) {
+    const at = this.booth.group.localToWorld(localPos.clone());
+    this.deps.audio.play('thud', { at, volume, rate: 1.6, jitter: 0.1 });
   }
 
   /* ----------------------------------------------------------- update ---- */
