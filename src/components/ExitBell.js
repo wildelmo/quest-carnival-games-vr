@@ -156,9 +156,15 @@ export class ExitBell {
         }
       }
     } else {
+      // close range AND actually looking at the bell — the operator panel
+      // lives nearby, and an E meant for it must never ring you out
       this.world.camera.getWorldPosition(_v1);
-      if (_v1.distanceTo(this._cordWorld) < 2.4 && this.input.consumeInteract()) {
-        this.#ring(null);
+      if (_v1.distanceTo(this._cordWorld) < 2.4) {
+        this.world.camera.getWorldDirection(_v2);
+        _v1.subVectors(this._cordWorld, _v1).normalize();
+        if (_v1.dot(_v2) > 0.9 && this.input.consumeInteract()) {
+          this.#ring(null);
+        }
       }
     }
   }

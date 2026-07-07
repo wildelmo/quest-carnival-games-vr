@@ -5,6 +5,17 @@ striped canvas, string lights, bunting, ragtime piano from a horn speaker
 on the centre pole — and a ring of physical game booths you walk or
 teleport between.
 
+The tent sits in the middle of a living night **midway**: laced canvas
+windows between the booths (and the entrance doorway) look out on a lit
+Ferris wheel slowly turning, glowing food stalls all the way around, a
+carousel, a high striker, strolling silhouette crowds, sweeping
+searchlights and fireworks bursting over the treeline — with their booms
+arriving a beat late, the way distant fireworks do.
+
+Your hands are big white **carnival gloves**: fingers curl with the
+trigger, and the cuff band (blue left, orange right) glows when your
+hand is near something you can grab.
+
 ![The tent](docs/tent.png)
 
 **Playable now:**
@@ -33,6 +44,11 @@ Milk Bottles, Whack-a-Mole, Skee-Ball.
 A brass **EXIT bell** on a striped post by the tent's centre pole ends the
 experience — pull its cord (or press `E` on desktop) to ring out, drop back
 to the splash screen and pause the audio.
+
+Next to it, the **OPERATOR PANEL** holds the player settings as three
+pokeable dome buttons: the comfort vignette (irises in during smooth
+locomotion), the snap-turn angle (30°/45°) and the bandstand music.
+Choices persist across visits via localStorage.
 
 ![Ball toss booth](docs/balltoss.png)
 ![Balloon dart booth](docs/darts.png)
@@ -73,8 +89,11 @@ src/
     World.js         renderer, XR session, fixed-step loop, player rig
     Physics.js       tiny custom physics: spheres vs boxes/zones (Quest-cheap)
     Input.js         XR controllers + desktop fallback behind one interface
-    Grabbables.js    grip-to-grab, swing-and-release throwing
+    Grabbables.js    grip-to-grab, swing-and-release throwing, hover affordance
     Locomotion.js    smooth walk, snap turn, teleport arc, no-go zones
+    Hands.js         procedural carnival gloves with analog finger curl
+    Comfort.js       locomotion vignette iris (toggle on the operator panel)
+    settings.js      persistent player settings (localStorage)
     AudioManager.js  positional CC0 samples + synthesized ambience beds
     textures.js      every texture, generated on <canvas> at load
     environment.js   baked PMREM env map, shiny-material factory, glows
@@ -83,8 +102,12 @@ src/
     BoothBase.js     stall structure, awning, sign, prize shelf, blockers
     Scoreboard.js    canvas-texture score / timer / status panel
     PushButton.js    pokeable arcade dome button
+    SettingsPanel.js the operator panel: comfort / snap / music buttons
   env/
-    Tent.js          the big-top: shell, lights, bunting, entrance, pads
+    Tent.js          the big-top: shell (with windows + doorway), lights,
+                     bunting, entrance, pads
+    Midway.js        the night carnival outside: Ferris wheel, stalls,
+                     carousel, crowds, fireworks, searchlights
   games/
     registry.js      MiniGame base class + how-to-add-a-booth notes
     BallTossGame.js
@@ -122,7 +145,11 @@ haptics, and locomotion blockers.
 - String lights, marquee chase bulbs, bunting and the ring-toss bottle
   field are instanced meshes; bulb glows and dust motes are additive
   point sprites (one draw call each).
-- Strongest fixed foveation is enabled; whole scene is ~70k triangles,
+- The whole midway outside is unlit silhouette geometry + emissive
+  glows — no extra lights, ~29 draw calls, and since three.js sorts
+  opaques front-to-back the tent wall early-z kills most of its overdraw
+  from inside.
+- Strongest fixed foveation is enabled; whole scene is ~88k triangles,
   most of it the 324-bottle field (a single static draw call).
 
 ## Audio

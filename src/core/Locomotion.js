@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { TENT_RADIUS } from '../env/Tent.js';
+import { settings } from './settings.js';
 
 /**
  * Locomotion — comfort-first movement inside the tent.
@@ -21,7 +22,6 @@ const _v2 = new THREE.Vector3();
 const _head = new THREE.Vector3();
 
 const WALK_SPEED = 2.2;       // m/s
-const SNAP_ANGLE = Math.PI / 6;
 const STICK_DEAD = 0.15;
 // walkable radius: just inside the visible canvas wall
 const WALK_RADIUS = TENT_RADIUS - 0.5;
@@ -36,6 +36,8 @@ export class Locomotion {
     this.input = input;
     /** no-go zones (booth footprints) as oriented XZ rectangles */
     this.blockers = [];
+    /** current stick-driven walk speed (m/s) — the comfort vignette reads it */
+    this.smoothSpeed = 0;
     this._snapReady = true;
     this._teleporting = false;
 
@@ -117,6 +119,7 @@ export class Locomotion {
     }
 
     // ---- smooth walk (left stick), head-relative
+    this.smoothSpeed = 0;
     if (Math.abs(left.stick.x) > STICK_DEAD || Math.abs(left.stick.y) > STICK_DEAD) {
       const head = this.world.camera;
       _v1.set(left.stick.x, 0, left.stick.y);
@@ -124,14 +127,16 @@ export class Locomotion {
       _v2.set(0, 0, -1).applyQuaternion(head.getWorldQuaternion(new THREE.Quaternion()));
       const yaw = Math.atan2(_v2.x, _v2.z) + Math.PI;
       _v1.applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+      this.smoothSpeed = _v1.length() * WALK_SPEED;
       this.#moveRig(_v1.x * WALK_SPEED * dt, _v1.z * WALK_SPEED * dt);
     }
 
-    // ---- snap turn (right stick x)
+    // ---- snap turn (right stick x) — angle comes from the operator panel
     if (Math.abs(right.stick.x) > 0.6) {
       if (this._snapReady) {
         this._snapReady = false;
-        this.#snapTurn(-Math.sign(right.stick.x) * SNAP_ANGLE);
+        const snap = (settings.data.snapDeg * Math.PI) / 180;
+        this.#snapTurn(-Math.sign(right.stick.x) * snap);
       }
     } else if (Math.abs(right.stick.x) < 0.3) {
       this._snapReady = true;

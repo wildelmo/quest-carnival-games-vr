@@ -18,34 +18,6 @@ import * as THREE from 'three';
 
 const _v = new THREE.Vector3();
 
-/**
- * Visible stand-in for a controller — kept consistent with the desert-fireworks
- * build: a dark capsule body with an emissive ring, tinted by handedness (blue
- * left, orange-red right) so each hand is easy to tell apart. Attached to the
- * grip, so it rides the real controller pose.
- */
-function buildControllerVisual(handedness) {
-  const group = new THREE.Group();
-  const body = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.022, 0.07, 3, 8),
-    new THREE.MeshLambertMaterial({ color: 0x2a2d38 }),
-  );
-  body.rotation.x = Math.PI / 2.6;
-  group.add(body);
-  const ring = new THREE.Mesh(
-    new THREE.TorusGeometry(0.042, 0.007, 6, 18),
-    new THREE.MeshLambertMaterial({
-      color: 0x11131a,
-      emissive: handedness === 'left' ? 0x2f6fff : 0xff7a30,
-      emissiveIntensity: 0.35,
-    }),
-  );
-  ring.rotation.x = Math.PI / 2.6;
-  ring.position.z = -0.02;
-  group.add(ring);
-  return group;
-}
-
 class Hand {
   constructor(index) {
     this.index = index;
@@ -55,9 +27,12 @@ class Hand {
     this.stick = { x: 0, y: 0 };
     this.gripPressed = false;
     this.triggerPressed = false;
+    this.gripValue = 0;         // analog 0..1 — drives the glove finger curl
+    this.triggerValue = 0;
     this.justGrabbed = false;   // grip OR trigger went down this frame
     this.justReleased = false;  // both went up this frame
     this.justTriggered = false; // trigger edge (teleport confirm etc.)
+    this.hoverGrab = false;     // a grabbable is within reach (set by Grabbables)
     this.connected = false;
     this._history = [];         // [{p: Vector3, t}] ring for throw velocity
     this._xrController = null;
@@ -151,12 +126,8 @@ export class Input {
         hand.connected = true;
         hand.handedness = e.data.handedness;
         hand._inputSource = e.data;
-        // build the visible controller once handedness is known. 'connected'
-        // only fires in an XR session, so nothing shows on desktop.
-        if (!hand._visual) {
-          hand._visual = buildControllerVisual(e.data.handedness);
-          grip.add(hand._visual);
-        }
+        // (the visible hand — a carnival glove — is built by core/Hands.js
+        // once handedness is known; 'connected' only fires in XR sessions)
         hand._pulseFn = (intensity, ms) => {
           const act = e.data.gamepad?.hapticActuators?.[0];
           if (act?.pulse) act.pulse(intensity, ms);
@@ -211,8 +182,10 @@ export class Input {
 
       const gp = hand._inputSource?.gamepad;
       if (!gp) continue;
-      const trigger = (gp.buttons[0]?.value ?? 0) > 0.5;
-      const squeeze = (gp.buttons[1]?.value ?? 0) > 0.5;
+      hand.triggerValue = gp.buttons[0]?.value ?? 0;
+      hand.gripValue = gp.buttons[1]?.value ?? 0;
+      const trigger = hand.triggerValue > 0.5;
+      const squeeze = hand.gripValue > 0.5;
       const held = trigger || squeeze;
       const wasHeld = hand.gripPressed || hand.triggerPressed;
       hand.justGrabbed = held && !wasHeld;

@@ -100,6 +100,12 @@ export class Grabbables {
       const idx = hand.index;
       const holding = this.held[idx];
 
+      // hover affordance: the glove's cuff lights up (and ticks once) when
+      // something grabbable is in reach of an empty hand
+      const wasHover = hand.hoverGrab;
+      hand.hoverGrab = !holding && !!this.#findNearest(hand);
+      if (hand.hoverGrab && !wasHover && isXR) hand.pulse(0.15, 12);
+
       if (hand.justGrabbed) {
         if (!holding) {
           this.#tryGrab(hand);
@@ -125,7 +131,8 @@ export class Grabbables {
     }
   }
 
-  #tryGrab(hand) {
+  /** nearest free grabbable within this hand's reach, or null */
+  #findNearest(hand) {
     const reach = this.input.isXR ? VR_REACH : DESKTOP_REACH;
     let best = null, bestD = Infinity;
     for (const g of this.items) {
@@ -134,6 +141,11 @@ export class Grabbables {
       const d = _v1.distanceTo(hand.gripPosition) - g.radius;
       if (d < reach && d < bestD) { best = g; bestD = d; }
     }
+    return best;
+  }
+
+  #tryGrab(hand) {
+    const best = this.#findNearest(hand);
     if (!best) return;
     best.heldBy = hand;
     this.held[hand.index] = best;
