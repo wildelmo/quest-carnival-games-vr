@@ -127,9 +127,12 @@ haptics, and locomotion blockers.
 
 ## Audio
 
-Every game event uses real recorded/designed **CC0 samples from
-Kenney.nl**, with random variation and pitch jitter; the music is a free
-ragtime track by **Anttis Instrumentals**. Two ambience beds (crowd
+Every game event uses real recorded/designed samples — **CC0 packs from
+Kenney.nl** (including the Impact Sounds pack: real glass clinks for rings
+clattering off the bottle field, heavy punch impacts for the catcher's-mitt
+thud of a knockdown) plus **recorded balloon bursts** (MIT, from the
+Super-Darts project) — with random variation and pitch jitter; the music is
+a free ragtime track by **Anttis Instrumentals**. Two ambience beds (crowd
 murmur, ball rolling) are synthesized at runtime and can be replaced by
 dropping real files into `public/assets/sounds/` — see `CREDITS.md` for
 the full mapping and swap paths.

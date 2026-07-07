@@ -3,8 +3,9 @@ import * as THREE from 'three';
 /**
  * AudioManager — positional carnival audio built on THREE.AudioListener.
  *
- * Real recorded/designed samples (CC0, Kenney.nl — shipped in
- * /public/assets/sounds, see CREDITS.md) are used for every game event.
+ * Real recorded/designed samples (Kenney.nl CC0 + a few other permissively
+ * licensed recordings — shipped in /public/assets/sounds, see CREDITS.md)
+ * are used for every game event.
  * Each logical sound name maps to one or more sample files; variations are
  * picked at random with a little playback-rate jitter so repeated hits
  * never sound machine-gunned.
@@ -18,10 +19,19 @@ import * as THREE from 'three';
 // logical name -> sample files (first that loads wins for singles; arrays = random variation)
 const SAMPLES = {
   // ball & dart impacts
-  hit:        ['hit1.wav', 'hit2.wav', 'hit3.wav'],  // ball smacks a target
+  hit:        ['hit1.wav', 'hit2.wav', 'hit3.wav'],  // foam-ball slap on a target
+  // heavy leather-glove body: recorded punch impacts (Kenney Impact Sounds, CC0),
+  // layered under `hit` so a knockdown lands with catcher's-mitt weight
+  mittThud:     ['mittThud1.wav', 'mittThud2.wav', 'mittThud3.wav', 'mittThud4.wav', 'mittThud5.wav'],
+  mittThudSoft: ['mittThudSoft1.wav', 'mittThudSoft2.wav', 'mittThudSoft3.wav', 'mittThudSoft4.wav', 'mittThudSoft5.wav'],
   thud:       ['rockHit2.wav'],                      // heavy knockdown thud
   fall:       ['fall1.wav', 'fall2.wav'],            // target flopping backwards
   dartStick:  ['jump3.wav'],                         // dart thunks into cork
+  // recorded glass impacts (Kenney Impact Sounds, CC0): rings clanking off
+  // the soda-bottle field, graded light -> heavy by impact speed
+  glassLight:  ['glassLight1.wav', 'glassLight2.wav', 'glassLight3.wav', 'glassLight4.wav', 'glassLight5.wav'],
+  glassMedium: ['glassMedium1.wav', 'glassMedium2.wav', 'glassMedium3.wav', 'glassMedium4.wav', 'glassMedium5.wav'],
+  glassHeavy:  ['glassHeavy1.wav', 'glassHeavy2.wav', 'glassHeavy3.wav', 'glassHeavy4.wav', 'glassHeavy5.wav'],
   // scoring / UI
   point:      ['coin1.wav', 'coin2.wav', 'coin4.wav'],
   bell:       ['secret2.wav'],                       // round start bell
@@ -35,8 +45,8 @@ const SAMPLES = {
   targetUp:   ['jump1.wav'],                         // winch pulling a target upright
   inflate:    ['phaseJump1.wav'],                    // nozzle re-inflating a balloon
   laser:      ['laser1.wav'],                        // reserved: duck gallery
-  // balloon pop = real explosion sample pitched up + synth "snap" layer
-  pop:        ['explosion1.wav', 'explosion2.wav'],
+  // real recorded balloon bursts (Super-Darts, MIT) — sharp broadband crack
+  pop:        ['balloonPop1.wav', 'balloonPop2.wav'],
 };
 
 // If these files exist they replace the synthesized beds (drop-in upgrade path).
@@ -138,23 +148,10 @@ export class AudioManager {
     return audio;
   }
 
-  /** Balloon pop: real explosion sample pitched way up + a synthesized snap. */
+  /** Balloon pop: real recorded bursts, played near natural pitch — the
+   *  recordings carry their own broadband crack, no synth layer needed. */
   playPop(at) {
-    this.play('pop', { at, volume: 0.9, rate: 1.9, jitter: 0.12 });
-    // snap layer: 30ms noise burst through a bandpass — gives the rubbery crack
-    const ctx = this.ctx;
-    if (ctx.state !== 'running') return;
-    const len = ctx.sampleRate * 0.05;
-    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.2);
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    const bp = ctx.createBiquadFilter();
-    bp.type = 'bandpass'; bp.frequency.value = 2400 + Math.random() * 900; bp.Q.value = 0.8;
-    const g = ctx.createGain(); g.gain.value = 0.5;
-    src.connect(bp).connect(g).connect(this.listener.getInput());
-    src.start();
+    this.play('pop', { at, volume: 0.95, rate: 1.0, jitter: 0.08 });
   }
 
   /**
