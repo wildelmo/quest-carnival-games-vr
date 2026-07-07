@@ -305,8 +305,7 @@ export class RingTossGame extends MiniGame {
     ring.v.copy(vel).applyQuaternion(this._invQuat);
     ring.prevY = ring.p.y;
     if (vel.length() >= 1) {
-      this.tryStart(); // the first real throw begins the round
-      this.deps.audio.play('dispense', { volume: 0.12, rate: 2.4 }); // faint whoosh
+      this.tryStart(); // the first real throw begins the round — silently
     }
   }
 
@@ -480,13 +479,13 @@ export class RingTossGame extends MiniGame {
       if (_v1.y < 0) _v1.negate();
       _q1.setFromUnitVectors(_v1, UP);
       ring.mesh.quaternion.premultiply(_q1);
-      this.deps.audio.play('thud', { at: ring.mesh, volume: 0.15, rate: 2.0 });
+      this.deps.audio.play('tick', { at: ring.mesh, volume: 0.25, jitter: 0.15 });
       return true;
     }
     v.y = Math.abs(v.y) * 0.35;
     v.x *= 0.6;
     v.z *= 0.6;
-    this.deps.audio.play('thud', { at: ring.mesh, volume: 0.12, rate: 2.2 });
+    this.deps.audio.play('tick', { at: ring.mesh, volume: 0.2, rate: 1.1, jitter: 0.15 });
     return false;
   }
 
@@ -511,10 +510,9 @@ export class RingTossGame extends MiniGame {
       then: () => {
         ring.state = 'ringed';
         const at = this.booth.group.localToWorld(new THREE.Vector3(bottle.x, NECK_TOP, bottle.z));
-        // ring slides down the neck and lands on the glass shoulder
-        this.deps.audio.play('glassLight', { at, volume: 0.4, jitter: 0.1 });
-        this.deps.audio.play('point', { at, volume: 0.5, rate: 1.25 });
-        if (bottle.gold) this.deps.audio.play('win', { at, volume: 0.6, rate: 1.3 });
+        // ring slides down the neck and lands on the glass shoulder — that
+        // clink IS the ringer feedback; the scoreboard does the rest
+        this.deps.audio.play('glassLight', { at, volume: 0.55, refDistance: 2.5, jitter: 0.1 });
         this.addScore(bottle.points, at);
       },
     });
@@ -598,7 +596,7 @@ export class RingTossGame extends MiniGame {
   /** ring knocking the booth woodwork (walls, counter faces) */
   #knock(localPos, volume) {
     const at = this.booth.group.localToWorld(localPos.clone());
-    this.deps.audio.play('thud', { at, volume, rate: 1.6, jitter: 0.1 });
+    this.deps.audio.play('knock', { at, volume, rate: 1.2, jitter: 0.12 });
   }
 
   /* ----------------------------------------------------------- update ---- */
@@ -636,7 +634,6 @@ export class RingTossGame extends MiniGame {
       }
       // reset is done once every loose ring is back in the bucket
       if (this.rings.every(r => r.state === 'bucket' || r.state === 'held')) {
-        this.deps.audio.play('bell', { at: this.booth.group, volume: 0.5, rate: 1.2 });
         this.finishReset();
       }
     }

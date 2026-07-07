@@ -35,13 +35,13 @@ export class MiniGame {
     deps.world.onUpdate((dt, t) => this.#tick(dt, t));
   }
 
-  /** call from the game's throw handler — the first real throw starts the round */
+  /** call from the game's throw handler — the first real throw starts the round.
+   *  Deliberately silent: a real carnival round just starts, no bell. */
   tryStart() {
     if (this.state !== 'ready') return;
     this.state = 'running';
     this.score = 0;
     this.timeLeft = this.roundSeconds;
-    this.deps.audio.play('bell', { at: this.booth?.group, volume: 0.9 });
     this.onRoundStart();
   }
 
@@ -65,10 +65,10 @@ export class MiniGame {
     if (this.booth) this.booth.scoreboard.setStatus(this.readyStatus);
   }
 
+  /** silent by design — the scoreboard counter IS the feedback */
   addScore(points, at) {
     if (this.state !== 'running') return false;
     this.score += points;
-    this.deps.audio.play('point', { at, volume: 0.65, rate: 1 + Math.min(0.5, this.score / 400) });
     return true;
   }
 
@@ -76,8 +76,6 @@ export class MiniGame {
     if (this.state !== 'running') return;
     this.state = 'over';
     this.best = Math.max(this.best, this.score);
-    this.deps.audio.play(reason === 'cleared' ? 'fanfare' : 'roundEnd',
-      { at: this.booth?.group, volume: 0.9 });
     this.onRoundEnd(reason);
   }
 
