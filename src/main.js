@@ -8,6 +8,7 @@ import { BlobShadows } from './core/Shadows.js';
 import { initEnvironment } from './core/environment.js';
 import { loadFonts } from './core/textures.js';
 import { Tent, TENT_RADIUS } from './env/Tent.js';
+import { Midway } from './env/Midway.js';
 import { ComingSoonBooth } from './components/BoothBase.js';
 import { ExitBell } from './components/ExitBell.js';
 import { BallTossGame } from './games/BallTossGame.js';
@@ -46,6 +47,8 @@ initEnvironment(world.renderer);
 world.physics.boundsRadius = TENT_RADIUS - 0.2;
 
 const tent = new Tent(world);
+// the night midway outside — visible through the doorway and wall windows
+const midway = new Midway(world, audio);
 
 /** everything a booth needs, in one bag */
 const deps = { world, input, audio, grabbables, locomotion, shadows };
@@ -143,4 +146,4 @@ boot();
 world.start();
 
 // dev convenience: expose for console poking
-window.__carnival = { world, games, tent, input, deps, exitBell, exitExperience };
+window.__carnival = { world, games, tent, midway, input, deps, exitBell, exitExperience };
