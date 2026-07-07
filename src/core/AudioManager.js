@@ -147,9 +147,9 @@ export class AudioManager {
 
   /** Balloon pop: real recorded bursts, played near natural pitch — the
    *  recordings carry their own broadband crack, no synth layer needed.
-   *  A big refDistance keeps the bang loud from throwing distance. */
+   *  Hot gain + a big refDistance: the bang should startle a little. */
   playPop(at) {
-    this.play('pop', { at, volume: 1.0, rate: 1.0, jitter: 0.06, refDistance: 4.5, rolloff: 1.0 });
+    this.play('pop', { at, volume: 1.3, rate: 1.0, jitter: 0.06, refDistance: 5, rolloff: 1.0 });
   }
 
   /**

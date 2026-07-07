@@ -378,7 +378,7 @@ export class RingTossGame extends MiniGame {
         else if (prevX <= FIELD_MIN_X - RING_OUTER) { p.x = FIELD_MIN_X - RING_OUTER; v.x *= -0.3; }
         else if (prevX >= FIELD_MAX_X + RING_OUTER) { p.x = FIELD_MAX_X + RING_OUTER; v.x *= -0.3; }
         v.multiplyScalar(0.6);
-        this.#clink(p, Math.min(0.55, 0.3 + slam * 0.06), slam);
+        this.#clink(p, Math.min(0.85, 0.45 + slam * 0.07), slam);
         this.#syncMesh(ring);
         return;
       }
@@ -415,7 +415,7 @@ export class RingTossGame extends MiniGame {
               (Math.random() - 0.5) * 0.7);
             ring.mesh.quaternion.premultiply(_q1);
             ring.bounces++;
-            this.#clink(p, Math.min(0.6, 0.25 + v.length() * 0.06), v.length());
+            this.#clink(p, Math.min(0.9, 0.4 + v.length() * 0.08), v.length());
             if (ring.bounces > MAX_BOUNCES || v.lengthSq() < 0.5) {
               this.#settleInValley(ring, p.x, p.z);
             } else {
@@ -512,7 +512,8 @@ export class RingTossGame extends MiniGame {
         const at = this.booth.group.localToWorld(new THREE.Vector3(bottle.x, NECK_TOP, bottle.z));
         // ring slides down the neck and lands on the glass shoulder — that
         // clink IS the ringer feedback; the scoreboard does the rest
-        this.deps.audio.play('glassLight', { at, volume: 0.55, refDistance: 2.5, jitter: 0.1 });
+        this.deps.audio.play('glassLight',
+          { at, volume: 0.7, rate: 1.08, refDistance: 2.8, jitter: 0.1 });
         this.addScore(bottle.points, at);
       },
     });
@@ -538,7 +539,8 @@ export class RingTossGame extends MiniGame {
         ring.state = 'resting';
         ring.playerSide = false;
         // wedged between the bottle shoulders — glass on glass
-        this.deps.audio.play('glassMedium', { at: ring.mesh, volume: 0.3, jitter: 0.1 });
+        this.deps.audio.play('glassMedium',
+          { at: ring.mesh, volume: 0.5, rate: 1.1, jitter: 0.1, refDistance: 2.5 });
       },
     });
   }
@@ -586,11 +588,14 @@ export class RingTossGame extends MiniGame {
     }
   }
 
-  /** ring clanking off the glass: light/medium/heavy by how hard it hit */
+  /** ring clanking off the glass: light/medium/heavy by how hard it hit.
+   *  Pitched up a touch and layered with a hard contact tick — that's the
+   *  "cla-CHINK" of rigid plastic on a bottle, not a rubbery bounce. */
   #clink(localPos, volume, speed = 1) {
     const at = this.booth.group.localToWorld(localPos.clone());
-    const name = speed > 2.6 ? 'glassHeavy' : speed > 1.2 ? 'glassMedium' : 'glassLight';
-    this.deps.audio.play(name, { at, volume, jitter: 0.1 });
+    const name = speed > 1.8 ? 'glassHeavy' : speed > 0.8 ? 'glassMedium' : 'glassLight';
+    this.deps.audio.play(name, { at, volume, rate: 1.12, jitter: 0.08, refDistance: 2.5 });
+    this.deps.audio.play('tick', { at, volume: volume * 0.5, rate: 1.45, jitter: 0.1, refDistance: 2.5 });
   }
 
   /** ring knocking the booth woodwork (walls, counter faces) */
