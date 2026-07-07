@@ -36,10 +36,14 @@ const GOLD_COUNT = 3;
 const POP_POINTS = 10, GOLD_POINTS = 25, CLEAR_BONUS = 200;
 const DART_GRAVITY = -5.5;   // darts fly a bit flat — feels accurate, not floaty
 const RERACK_DELAY = 2.5;
+const NEEDLE_LEN = 0.1;      // needle tip rides this far ahead of the dart origin
 
 const _v1 = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
 const _v3 = new THREE.Vector3();
+const _v4 = new THREE.Vector3();
+const _v5 = new THREE.Vector3();
+const _v6 = new THREE.Vector3();
 const _m1 = new THREE.Matrix4();
 const _c1 = new THREE.Color();
 const _q1 = new THREE.Quaternion();
@@ -419,19 +423,27 @@ export class BalloonDartGame extends MiniGame {
     return overCounter ? this.booth.counterHeight + 0.02 : 0.03;
   }
 
-  /** swept segment vs balloons, then vs the cork plane */
+  /** swept needle-tip segment vs balloons, then vs the cork plane */
   #sweepDart(d) {
-    const p0 = d.prevPos, p1 = d.mesh.position;
+    // The needle TIP does the hitting, one NEEDLE_LEN ahead of the dart's
+    // origin (mid-barrel). Sweeping the origin — and parking it offset along
+    // the BOARD NORMAL — left the visible needle point NEEDLE_LEN * lateral
+    // angle away from the true impact point: darts thrown at the board's
+    // sides stuck a good inch from where they visibly hit. Sweep the tip
+    // and park the dart along its own flight axis so the point stays put.
+    const dir = _v4.copy(d.velocity).normalize();
+    const tip0 = _v5.copy(d.prevPos).addScaledVector(dir, NEEDLE_LEN);
+    const tip1 = _v6.copy(d.mesh.position).addScaledVector(dir, NEEDLE_LEN);
 
-    // balloons: closest approach of segment to each alive balloon centre
+    // balloons: closest approach of the tip's segment to each alive centre
     for (const b of this.balloons) {
       if (!b.alive || b.inflate < 0.85) continue;
-      _v1.subVectors(p1, p0);
+      _v1.subVectors(tip1, tip0);
       const segLen2 = _v1.lengthSq();
       if (segLen2 < 1e-8) continue;
-      _v2.subVectors(b.worldPos, p0);
+      _v2.subVectors(b.worldPos, tip0);
       const s = THREE.MathUtils.clamp(_v2.dot(_v1) / segLen2, 0, 1);
-      _v3.copy(p0).addScaledVector(_v1, s);
+      _v3.copy(tip0).addScaledVector(_v1, s);
       if (_v3.distanceToSquared(b.worldPos) < (BALLOON_R * 1.12) ** 2) {
         this.#popBalloon(b, _v3);
         // dart keeps flying — often sticks into the cork right behind
@@ -439,22 +451,24 @@ export class BalloonDartGame extends MiniGame {
     }
 
     // cork board plane (board local z = 0.05 is the face)
-    _v1.copy(p0); this.board.worldToLocal(_v1);
-    _v2.copy(p1); this.board.worldToLocal(_v2);
+    _v1.copy(tip0); this.board.worldToLocal(_v1);
+    _v2.copy(tip1); this.board.worldToLocal(_v2);
     const FACE = 0.045;
     if (_v1.z > FACE && _v2.z <= FACE) {
       const s = (_v1.z - FACE) / (_v1.z - _v2.z);
-      _v3.lerpVectors(_v1, _v2, s);
+      _v3.lerpVectors(_v1, _v2, s); // where the needle point meets the cork
       if (Math.abs(_v3.x) < BOARD_W / 2 + 0.08 && Math.abs(_v3.y) < BOARD_H / 2 + 0.08) {
         // dart is fast enough to stick?
         if (d.velocity.lengthSq() > 4) {
           d.state = 'stuck';
           d.stickWobble = 0.3;
           d.rerackAt = this._now + RERACK_DELAY;
-          // park the dart with ~2cm of needle in the cork (the nose reaches
-          // 0.1 ahead of the origin), keeping its flight heading
-          _v3.z = FACE + 0.08;
-          d.mesh.position.copy(this.board.localToWorld(_v3.clone()));
+          // park ~2cm of needle past the contact point, body trailing back
+          // along the flight line, heading locked to the flight direction
+          const contact = this.board.localToWorld(_v3.clone());
+          d.mesh.position.copy(contact).addScaledVector(dir, 0.02 - NEEDLE_LEN);
+          _v1.copy(d.mesh.position).sub(dir);
+          d.mesh.lookAt(_v1); // nose is on -Z: aim at a point behind
           // real wood knock, pitched up a touch — dart thunking into cork.
           // Big refDistance so the thunk carries back to the throwing line.
           this.deps.audio.play('knock',
