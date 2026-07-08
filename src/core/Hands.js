@@ -38,18 +38,30 @@ const _vOffset = new THREE.Vector3();
  * knuckles), the palm on the correct ∓X side, the thumb on -Z (up, by the
  * thumbstick), and the finger-curl hinge (model X) lands on grip Z so
  * curling fingers wrap around the controller handle like a real grip.
+ *
+ * On top of that, REST_PITCH tips the whole glove up: the grip pose is
+ * anchored to the controller handle rather than the knuckle line, so a
+ * glove mapped flat onto -Y reads with its fingertips drooping ~30° toward
+ * the floor in a handshake pose. The correction swings the fingers from -Y
+ * toward -Z (thumb-side "up") — a rotation about the palm-normal X axis,
+ * which is the same axis for both hands in grip space, so one quaternion
+ * mirrors correctly onto both.
  */
+const REST_PITCH = new THREE.Quaternion()
+  .setFromAxisAngle(new THREE.Vector3(1, 0, 0), THREE.MathUtils.degToRad(30));
 const GRIP_ALIGN = {
-  right: new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(
-    new THREE.Vector3(0, 0, 1),    // model +X (across the knuckles) → grip +Z
-    new THREE.Vector3(1, 0, 0),    // model +Y (back of hand)        → grip +X
-    new THREE.Vector3(0, 1, 0),    // model +Z (toward the wrist)    → grip +Y
-  )),
-  left: new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(
-    new THREE.Vector3(0, 0, -1),   // model +X (across the knuckles) → grip -Z
-    new THREE.Vector3(-1, 0, 0),   // model +Y (back of hand)        → grip -X
-    new THREE.Vector3(0, 1, 0),    // model +Z (toward the wrist)    → grip +Y
-  )),
+  right: REST_PITCH.clone().multiply(new THREE.Quaternion().setFromRotationMatrix(
+    new THREE.Matrix4().makeBasis(
+      new THREE.Vector3(0, 0, 1),    // model +X (across the knuckles) → grip +Z
+      new THREE.Vector3(1, 0, 0),    // model +Y (back of hand)        → grip +X
+      new THREE.Vector3(0, 1, 0),    // model +Z (toward the wrist)    → grip +Y
+    ))),
+  left: REST_PITCH.clone().multiply(new THREE.Quaternion().setFromRotationMatrix(
+    new THREE.Matrix4().makeBasis(
+      new THREE.Vector3(0, 0, -1),   // model +X (across the knuckles) → grip -Z
+      new THREE.Vector3(-1, 0, 0),   // model +Y (back of hand)        → grip -X
+      new THREE.Vector3(0, 1, 0),    // model +Z (toward the wrist)    → grip +Y
+    ))),
 };
 
 // finger segment sizes (metres)
@@ -147,9 +159,12 @@ function buildGlove(handedness) {
         f.root.rotation.x = -(0.16 + k * 1.22);
         f.mid.rotation.x = -(0.1 + k * 1.42);
       }
-      thumbRoot.rotation.x = -(0.08 + k * 0.55);
-      thumbRoot.rotation.y = -side * (0.95 - k * 0.4);
-      thumbMid.rotation.x = -(0.06 + k * 0.7);
+      // the thumb opposes: as the fingers close it sweeps in across the
+      // palm (yaw eases toward the fingers) AND folds down over whatever
+      // is held, so a full grab reads as a real grip, not four hooks
+      thumbRoot.rotation.x = -(0.08 + k * 1.0);
+      thumbRoot.rotation.y = -side * (0.95 - k * 0.75);
+      thumbMid.rotation.x = -(0.06 + k * 1.05);
     },
     setHover(on, t) {
       band.material.emissiveIntensity = on ? 0.6 + 0.35 * Math.sin(t * 9) : 0.3;
