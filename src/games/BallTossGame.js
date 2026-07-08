@@ -379,6 +379,11 @@ export class BallTossGame extends MiniGame {
           radius: BALL_RADIUS + 0.03, body,
           // generous throw assist: a relaxed flick should reach the top shelf
           throwBoost: 1.6,
+          // the ball's CENTRE sits its own radius past the palm surface, so
+          // it rests against the palm with the fingers curling around it —
+          // the looser holdCurl keeps fingertips on, not through, the foam
+          holdOffset: { palm: BALL_RADIUS + 0.015, fingers: 0.015 },
+          holdCurl: 0.68,
           // the first real throw starts the round (a gentle drop doesn't)
           onThrow: (vel) => { if (vel.length() > 1) this.tryStart(); },
         }),

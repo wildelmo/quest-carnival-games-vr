@@ -253,9 +253,11 @@ export class BalloonDartGame extends MiniGame {
       d.grab = this.deps.grabbables.add(dart, {
         radius: 0.075,
         throwBoost: 1.45, // darts are precise, not powerful — help them along
-        // where the dart settles against the palm; its ORIENTATION is
+        // pinched at the fingertips (a dart's grip is the barrel, held in
+        // the fingers, never buried in the palm); its ORIENTATION is
         // whatever it was when grabbed — turn it in your hand at will
-        holdPosition: new THREE.Vector3(0, 0, -0.02),
+        holdOffset: { palm: 0.07, fingers: 0.04 },
+        holdCurl: 0.8,
         onGrab: () => { d.state = 'held'; },
         onThrow: (vel) => this.#throwDart(d, vel),
       });
