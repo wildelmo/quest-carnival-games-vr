@@ -237,9 +237,10 @@ export class RingTossGame extends MiniGame {
       ring.grab = this.deps.grabbables.add(mesh, {
         radius: RING_OUTER + 0.035,
         throwBoost: 1.5,
-        // palm anchor only — the ring keeps its grabbed orientation, so
-        // you pick it up however it lies and level it with your wrist
-        holdPosition: new THREE.Vector3(0, 0, -0.06),
+        // anchor only — the ring keeps its grabbed orientation, so you pick
+        // it up however it lies and level it with your wrist; it rides just
+        // off the fist top so the hoop hangs from the hand, not around it
+        holdOffset: { palm: 0.02, fingers: 0, up: 0.06 },
         onGrab: () => { ring.state = 'held'; },
         onThrow: (vel) => this.#throwRing(ring, vel),
       });

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { REST_PITCH_DEG } from './Hands.js';
 
 /**
  * Grabbables — grip-to-grab, swing-and-release throwing.
@@ -14,9 +15,16 @@ import * as THREE from 'three';
  * hand at that instant, and the object rides the wrist from there — pick a
  * dart up sideways and it stays sideways in your fingers until you turn it,
  * exactly like lifting any real object. Nothing is ever snapped to a canned
- * "aim" orientation. (Only the POSITION eases toward the palm over a few
+ * "aim" orientation. (Only the POSITION eases toward the hand over a few
  * frames, so a long-armed desktop grab doesn't leave the object floating
  * half a metre from the hand.)
+ *
+ * WHERE it settles is `holdOffset` — anatomical metres out of the palm /
+ * along the fingers / out of the fist top, converted per hand by
+ * #holdAnchor. Crucially the XR grip-space ORIGIN is the centroid of the
+ * fist, so anchoring anywhere near (0,0,0) buries the object inside the
+ * glove mesh; real objects sit against the palm surface and in the curled
+ * fingers, a few centimetres out along the palm normal.
  *
  * A grabbable with a physics `body` gets its body disabled while held and
  * re-enabled with the throw velocity on release. Objects without a body
@@ -29,7 +37,15 @@ const _q1 = new THREE.Quaternion();
 
 const VR_REACH = 0.16;       // metres from grip centre
 const DESKTOP_REACH = 1.4;   // desktop arm is longer for playability
-const SETTLE_TIME = 0.18;    // s for the grab point to ease into the palm
+const SETTLE_TIME = 0.18;    // s for the grab point to ease into the hand
+
+// the glove rides the grip pitched up REST_PITCH_DEG (see Hands.js), so the
+// finger/fist-top hold directions pitch with it
+const PITCH = THREE.MathUtils.degToRad(REST_PITCH_DEG);
+const COS_P = Math.cos(PITCH), SIN_P = Math.sin(PITCH);
+// desktop glove display offset + scale, mirrored from Hands.js #update
+const DESKTOP_GLOVE_OFFSET = new THREE.Vector3(0.05, -0.05, 0);
+const DESKTOP_GLOVE_SCALE = 0.8;
 
 export class Grabbable {
   constructor(object, opts = {}) {
@@ -38,9 +54,17 @@ export class Grabbable {
     this.body = opts.body ?? null;       // SphereBody (optional)
     this.enabled = true;
     this.heldBy = null;
-    /** where the object settles relative to the palm (position only —
-     *  orientation is always whatever it was when grabbed) */
-    this.holdPosition = opts.holdPosition ?? new THREE.Vector3(0, 0, -0.03);
+    /**
+     * Where the object settles in the hand (position only — orientation is
+     * always whatever it was when grabbed), in anatomical metres:
+     *   palm    — out of the palm surface, into the curled fingers
+     *   fingers — from the fist centre toward the fingertips
+     *   up      — out of the top of the fist (thumb side in a handshake)
+     * Mirrored automatically for the left hand by #holdAnchor.
+     */
+    this.holdOffset = { palm: 0.05, fingers: 0.02, up: 0, ...(opts.holdOffset ?? {}) };
+    /** finger curl while holding this (0..1) — fat objects keep a wider fist */
+    this.holdCurl = opts.holdCurl ?? 0.72;
     /** throw assist multiplier — casual flicks should still reach the targets */
     this.throwBoost = opts.throwBoost ?? 1.3;
     this.onGrab = opts.onGrab ?? null;
@@ -123,12 +147,37 @@ export class Grabbables {
       if (g) {
         g._settle = Math.min(1, g._settle + dt / SETTLE_TIME);
         const k = g._settle * (2 - g._settle); // ease-out
-        _v1.lerpVectors(g._grabPos, g.holdPosition, k);
+        _v1.lerpVectors(g._grabPos, this.#holdAnchor(g, hand, _v2), k);
         g.object.position.copy(_v1).applyQuaternion(hand.gripQuaternion)
           .add(hand.gripPosition);
         g.object.quaternion.copy(hand.gripQuaternion).multiply(g._grabQuat);
       }
     }
+  }
+
+  /**
+   * Hand-local point the held object settles to, from its anatomical
+   * holdOffset. XR grip space (see the GRIP_ALIGN notes in Hands.js) puts
+   * the ORIGIN at the fist centroid with ±X the palm normal — +X for the
+   * left hand, -X for the right — -Y running out past the knuckles and -Z
+   * out of the fist top; the visible glove is pitched up REST_PITCH_DEG on
+   * top of that, so the finger/up directions here pitch with it. The
+   * desktop hand is the camera frame with the glove drawn palm-down at a
+   * small display offset — same anatomy, different axes.
+   */
+  #holdAnchor(g, hand, out) {
+    const { palm, fingers, up } = g.holdOffset;
+    if (this.input.isXR) {
+      const px = hand.handedness === 'left' ? 1 : -1;
+      return out.set(
+        px * palm,
+        -fingers * COS_P + up * SIN_P,
+        -fingers * SIN_P - up * COS_P,
+      );
+    }
+    // desktop glove: palm faces -Y, fingers reach -Z, fist top is +Y
+    return out.copy(DESKTOP_GLOVE_OFFSET).add(_v1.set(
+      0, (up - palm) * DESKTOP_GLOVE_SCALE, -fingers * DESKTOP_GLOVE_SCALE));
   }
 
   /** nearest free grabbable within this hand's reach, or null */

@@ -47,8 +47,9 @@ const _vOffset = new THREE.Vector3();
  * which is the same axis for both hands in grip space, so one quaternion
  * mirrors correctly onto both.
  */
+export const REST_PITCH_DEG = 30; // shared with Grabbables' hold anchors
 const REST_PITCH = new THREE.Quaternion()
-  .setFromAxisAngle(new THREE.Vector3(1, 0, 0), THREE.MathUtils.degToRad(30));
+  .setFromAxisAngle(new THREE.Vector3(1, 0, 0), THREE.MathUtils.degToRad(REST_PITCH_DEG));
 const GRIP_ALIGN = {
   right: REST_PITCH.clone().multiply(new THREE.Quaternion().setFromRotationMatrix(
     new THREE.Matrix4().makeBasis(
@@ -210,8 +211,10 @@ export class Hands {
           hand._grip.add(glove.group);
         }
         glove.group.visible = true;
-        const holding = !!this.grabbables.held[hand.index];
-        const target = holding ? 0.72
+        // curl to the held object's own grip (a fat ball keeps the fist
+        // wider open than a pinched dart) instead of one canned fist
+        const held = this.grabbables.held[hand.index];
+        const target = held ? held.holdCurl
           : 0.15 + Math.max(hand.gripValue, hand.triggerValue) * 0.85;
         this.#ease(glove, target, dt);
         glove.setHover(hand.hoverGrab, t);
@@ -231,8 +234,8 @@ export class Hands {
       glove.group.quaternion.copy(hand.gripQuaternion);
       glove.group.position.copy(_vOffset.set(0.05, -0.05, 0)
         .applyQuaternion(hand.gripQuaternion).add(hand.gripPosition));
-      const holding = !!this.grabbables.held[hand.index];
-      this.#ease(glove, holding ? 0.72 : 0.22, dt);
+      const held = this.grabbables.held[hand.index];
+      this.#ease(glove, held ? held.holdCurl : 0.22, dt);
       glove.setHover(hand.hoverGrab, t);
     }
   }
