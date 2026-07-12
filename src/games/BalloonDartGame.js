@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { MiniGame } from './registry.js';
 import { noseOutHoldQuat } from '../core/Grabbables.js';
+import { buildDartMesh } from './dartMesh.js';
 import { BoothBase } from '../components/BoothBase.js';
 import { corkTexture, CARNIVAL_PALETTE } from '../core/textures.js';
 import { shiny } from '../core/environment.js';
@@ -202,45 +203,10 @@ export class BalloonDartGame extends MiniGame {
     }
     g.add(tray);
 
-    // Proper dart anatomy, modelled pointing along -Z (three.js "forward"):
-    // steel needle -> colored metal barrel (where you grip) -> thin dark
-    // shaft -> kite-shaped flights crossed in an X at the tail.
-    const needleGeo = new THREE.ConeGeometry(0.0035, 0.05, 8);
-    needleGeo.rotateX(-Math.PI / 2);                    // apex points -Z
-    const barrelGeo = new THREE.CylinderGeometry(0.0065, 0.0065, 0.055, 10);
-    barrelGeo.rotateX(Math.PI / 2);                     // axis along Z
-    const shaftGeo = new THREE.CylinderGeometry(0.0035, 0.0035, 0.055, 8);
-    shaftGeo.rotateX(Math.PI / 2);
-    // one kite-shaped flight blade in the YZ plane (contains the shaft axis);
-    // a second copy rotated 90° around Z completes the classic X of fins
-    const flightGeo = new THREE.BufferGeometry();
-    flightGeo.setAttribute('position', new THREE.Float32BufferAttribute([
-      0, 0, 0.045,        // leading point on the shaft
-      0, 0.024, 0.07,     // upper tip
-      0, 0, 0.092,        // trailing point on the shaft
-      0, -0.024, 0.07,    // lower tip
-    ], 3));
-    flightGeo.setIndex([0, 1, 2, 0, 2, 3]);
-    flightGeo.computeVertexNormals();
-    const steelMat = shiny({ color: 0xc7ccd8, metalness: 1, roughness: 0.22 });
-    const shaftMat = shiny({ color: 0x2a2a35, metalness: 0.6, roughness: 0.35 });
-
     for (let i = 0; i < DART_COUNT; i++) {
       const color = CARNIVAL_PALETTE[(i * 2 + 1) % CARNIVAL_PALETTE.length];
-      const dart = new THREE.Group();
-      const needle = new THREE.Mesh(needleGeo, steelMat);
-      needle.position.z = -0.075;                       // tip ends at z=-0.1
-      // anodised metal barrel — the part you grip
-      const barrel = new THREE.Mesh(barrelGeo,
-        shiny({ color, metalness: 0.8, roughness: 0.3 }));
-      barrel.position.z = -0.022;
-      const shaft = new THREE.Mesh(shaftGeo, shaftMat);
-      shaft.position.z = 0.033;
-      const f1 = new THREE.Mesh(flightGeo,
-        shiny({ color, roughness: 0.2, side: THREE.DoubleSide }));
-      const f2 = f1.clone();
-      f2.rotation.z = Math.PI / 2;
-      dart.add(needle, barrel, shaft, f1, f2);
+      // dart anatomy lives in dartMesh.js, shared with the hand-lab page
+      const dart = buildDartMesh(color);
       this.deps.world.scene.add(dart);
       this.deps.shadows?.track(dart, { radius: 0.07, strength: 0.55 });
 
@@ -258,12 +224,14 @@ export class BalloonDartGame extends MiniGame {
         radius: 0.075,
         throwBoost: 1.45, // darts are precise, not powerful — help them along
         // a picked-up dart SEATS ITSELF in a real throwing grip: the glove
-        // blends into its "OK sign" pinch (see PINCH in Hands.js) while the
-        // dart swings nose-out along the finger axis, barrel landing at the
-        // pinch point between the thumb and index pads. The offsets are the
-        // solved pinch centre { palm 0.053, fingers 0.077, up 0.030 } minus
-        // the barrel's 0.022 lead from the dart origin along the nose.
-        holdOffset: { palm: 0.053, fingers: 0.055, up: 0.03 },
+        // blends into its dart pinch (see PINCH in Hands.js — index+middle
+        // bunched on the barrel, thumb arced around the far side) while the
+        // dart swings nose-out along the finger axis, mid-barrel landing in
+        // the pocket between the finger pads. Numbers tuned VISUALLY in
+        // /hand-lab.html (dev: open it, drag sliders, read the clearance
+        // panel) — with them the thumb pad kisses the barrel at 0mm and the
+        // index pad presses it by ~2mm.
+        holdOffset: { palm: 0.05, fingers: 0.052, up: 0.053 },
         holdCurl: 0.55,
         holdPose: 'pinch',
         holdQuat: noseOutHoldQuat(),

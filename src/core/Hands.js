@@ -52,7 +52,7 @@ const _vOffset = new THREE.Vector3();
 export const REST_PITCH_DEG = 30; // shared with Grabbables' hold anchors
 const REST_PITCH = new THREE.Quaternion()
   .setFromAxisAngle(new THREE.Vector3(1, 0, 0), THREE.MathUtils.degToRad(REST_PITCH_DEG));
-const GRIP_ALIGN = {
+export const GRIP_ALIGN = {
   right: REST_PITCH.clone().multiply(new THREE.Quaternion().setFromRotationMatrix(
     new THREE.Matrix4().makeBasis(
       new THREE.Vector3(0, 0, 1),    // model +X (across the knuckles) → grip +Z
@@ -79,23 +79,28 @@ function capsuleAlongMinusZ({ r, len }) {
 }
 
 /**
- * The dart-throw pinch (the "OK sign"): index and middle curl toward the
- * thumb, the outer finger trails relaxed, and the thumb sweeps in across
- * the palm to close the ring — blended in by setPose(curl, pinch).
+ * The dart-throw pinch, blended in by setPose(curl, pinch): index and
+ * middle lean together (the yaw targets) and curl their pads onto the
+ * barrel from one side, the thumb arcs OUT around the other side in the
+ * open "reverse C" a real hand makes — explicit joint angles, because its
+ * curl track (splay easing toward the fingers as it folds) can only sweep
+ * flat across the palm, which reads as no thumb at all — and the outer
+ * finger trails relaxed underneath.
  *
- * The fingers reuse the curl formulas with fixed per-finger curls, but the
- * thumb gets explicit joint angles: its curl track (splay eased toward the
- * fingers as it folds) can never actually reach the index fingertip. The
- * numbers are solved numerically so the thumb tip-pad lands 4cm from the
- * index tip-pad, perpendicular to the finger axis — precisely a 13mm dart
- * barrel plus the two finger pads. The pinch point this closes on (grip
- * space, anatomical) is { palm 0.053, fingers 0.077, up 0.030 }, which is
- * where BalloonDartGame anchors a held dart's barrel.
+ * Tuned VISUALLY in /hand-lab.html (dev-only page: real glove + real dart
+ * + these exact transforms, orbit camera, sliders for every number here
+ * and a live clearance readout). If the grip ever needs adjusting, do it
+ * there and copy the numbers back — don't guess in the dark: the matching
+ * dart anchor lives in BalloonDartGame's holdOffset.
  */
-const PINCH = {
-  finger: { index: 0.55, middle: 0.62, outer: 0.28 },
-  // canonical thumb pose (right hand; yaw mirrors via -side like the curl track)
-  thumb: { rootX: -0.20, yaw: -0.10, midX: -0.65 },
+export const PINCH = {
+  finger: { index: 0.55, middle: 0.60, outer: 0.28 },
+  // lateral lean toward the thumb so index + middle bunch together on the
+  // barrel (canonical right-hand radians; mirrors via -side, like the thumb)
+  yaw: { index: 0.18, middle: 0.30, outer: 0 },
+  // canonical thumb pose (right hand) — arced out around the barrel in the
+  // open "reverse C", NOT swept flat across the palm
+  thumb: { rootX: -0.28, yaw: 0.45, midX: -0.40 },
 };
 
 /**
@@ -147,7 +152,8 @@ export function buildGlove(handedness) {
   for (const fx of [-0.027, 0, 0.027]) {
     const root = new THREE.Group();
     root.position.set(fx, 0.004, -0.052);
-    root.rotation.y = -fx * 3;             // slight natural splay
+    const baseYaw = -fx * 3;               // slight natural splay
+    root.rotation.y = baseYaw;
     const seg1 = new THREE.Mesh(capsuleAlongMinusZ(SEG1), white);
     root.add(seg1);
     const mid = new THREE.Group();
@@ -156,7 +162,7 @@ export function buildGlove(handedness) {
     mid.add(new THREE.Mesh(capsuleAlongMinusZ(SEG2), white));
     root.add(mid);
     wrap.add(root);
-    fingers.push({ root, mid });
+    fingers.push({ root, mid, baseYaw });
   }
 
   // thumb — one stubby segment + tip, off the palm's side. In model space
@@ -189,11 +195,12 @@ export function buildGlove(handedness) {
       this.pinch = pinch;
       const lerp = THREE.MathUtils.lerp;
       for (let i = 0; i < 3; i++) {
-        const role = i === indexAt ? PINCH.finger.index
-          : i === 1 ? PINCH.finger.middle : PINCH.finger.outer;
-        const fk = lerp(k, role, pinch);
-        fingers[i].root.rotation.x = -(0.16 + fk * 1.22);
-        fingers[i].mid.rotation.x = -(0.1 + fk * 1.42);
+        const role = i === indexAt ? 'index' : i === 1 ? 'middle' : 'outer';
+        const fk = lerp(k, PINCH.finger[role], pinch);
+        const f = fingers[i];
+        f.root.rotation.x = -(0.16 + fk * 1.22);
+        f.root.rotation.y = lerp(f.baseYaw, -side * PINCH.yaw[role], pinch);
+        f.mid.rotation.x = -(0.1 + fk * 1.42);
       }
       // the thumb opposes: as the fingers close it sweeps in across the
       // palm (yaw eases toward the fingers) AND folds down over whatever
