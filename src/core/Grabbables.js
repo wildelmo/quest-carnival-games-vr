@@ -68,6 +68,7 @@ export function noseOutHoldQuat(noseUpDeg = 0) {
   return {
     xr: new THREE.Quaternion().setFromAxisAngle(_X, -(Math.PI / 2 - PITCH - up)),
     desktop: new THREE.Quaternion().setFromAxisAngle(_X, up),
+    noseUpDeg,   // kept so the DartGripTuner's reset restores the shipped angle
   };
 }
 

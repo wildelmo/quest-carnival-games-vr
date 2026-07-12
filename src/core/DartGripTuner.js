@@ -63,7 +63,7 @@ export class DartGripTuner {
     if (this.values) return true;
     const first = this.#targets()[0];
     if (!first) return false;
-    this.defaults = { ...first.holdOffset, noseUp: 0 };
+    this.defaults = { ...first.holdOffset, noseUp: first.holdQuat?.noseUpDeg ?? 0 };
     let saved = null;
     try { saved = JSON.parse(localStorage.getItem(STORE_KEY)); } catch { /* corrupt = ignore */ }
     this.values = { ...this.defaults, ...(saved ?? {}) };
