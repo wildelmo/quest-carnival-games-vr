@@ -33,6 +33,7 @@ class Hand {
     this.justReleased = false;  // both went up this frame
     this.justTriggered = false; // trigger edge (teleport confirm etc.)
     this.hoverGrab = false;     // a grabbable is within reach (set by Grabbables)
+    this.stickClaimed = false;  // a tool owns this stick this frame — Locomotion skips it
     this.connected = false;
     this._history = [];         // [{p: Vector3, t}] ring for throw velocity
     this._xrController = null;
@@ -175,6 +176,7 @@ export class Input {
   #updateXR(t) {
     for (const hand of this.hands) {
       hand.justGrabbed = hand.justReleased = hand.justTriggered = false;
+      hand.stickClaimed = false;   // claimants re-assert every frame
       if (!hand.connected) continue;
       hand._grip.getWorldPosition(hand.gripPosition);
       hand._grip.getWorldQuaternion(hand.gripQuaternion);

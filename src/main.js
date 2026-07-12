@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { World } from './core/World.js';
 import { Input } from './core/Input.js';
 import { Grabbables } from './core/Grabbables.js';
+import { DartGripTuner } from './core/DartGripTuner.js';
 import { Locomotion } from './core/Locomotion.js';
 import { AudioManager } from './core/AudioManager.js';
 import { BlobShadows } from './core/Shadows.js';
@@ -40,6 +41,9 @@ const world = new World(document.getElementById('app'));
 const input = new Input(world);
 const audio = new AudioManager(world.camera, world.scene);
 const grabbables = new Grabbables(world, input, audio);
+// in-headset dart grip tuning (hold dart + squeeze empty hand's grip);
+// registered BEFORE Locomotion so its stick claim lands the same frame
+const gripTuner = new DartGripTuner(world, input, grabbables);
 const locomotion = new Locomotion(world, input);
 const shadows = new BlobShadows(world);
 // big white carnival gloves for your hands + the comfort vignette
@@ -155,5 +159,5 @@ world.start();
 // dev convenience: expose for console poking
 window.__carnival = {
   world, games, tent, midway, input, deps, exitBell, exitExperience,
-  hands, comfort, settings,
+  hands, comfort, settings, gripTuner,
 };
