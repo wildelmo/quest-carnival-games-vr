@@ -118,9 +118,11 @@ export class Locomotion {
       left = hands[1]; right = hands[0];
     }
 
-    // ---- smooth walk (left stick), head-relative
+    // ---- smooth walk (left stick), head-relative — unless something else
+    // (the dart grip tuner) has claimed the stick this frame
     this.smoothSpeed = 0;
-    if (Math.abs(left.stick.x) > STICK_DEAD || Math.abs(left.stick.y) > STICK_DEAD) {
+    if (!left.stickClaimed &&
+        (Math.abs(left.stick.x) > STICK_DEAD || Math.abs(left.stick.y) > STICK_DEAD)) {
       const head = this.world.camera;
       _v1.set(left.stick.x, 0, left.stick.y);
       // rotate by camera yaw only
@@ -129,6 +131,17 @@ export class Locomotion {
       _v1.applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
       this.smoothSpeed = _v1.length() * WALK_SPEED;
       this.#moveRig(_v1.x * WALK_SPEED * dt, _v1.z * WALK_SPEED * dt);
+    }
+
+    // a claimed right stick tunes the dart grip — cancel any half-aimed
+    // teleport (no surprise jump on release) and skip snap/teleport
+    if (right.stickClaimed) {
+      if (this._teleporting) {
+        this._teleporting = false;
+        this.arcDots.visible = this.ring.visible = false;
+        this._arcTarget = null;
+      }
+      return;
     }
 
     // ---- snap turn (right stick x) — angle comes from settings
