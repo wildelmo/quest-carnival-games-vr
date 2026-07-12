@@ -225,9 +225,11 @@ export function galleryBackdropTexture() {
   butterfly(W * 0.57, H * 0.45, 0.85, '#e05a9e');
   butterfly(W * 0.76, H * 0.52, 0.9, '#3aa0ff');
   // a couple of painted bullseyes on the hills (they're just decoration,
-  // but they make the whole wall read TARGET RANGE at a glance)
-  bullseye(ctx, W * 0.1, H * 0.78, 40);
-  bullseye(ctx, W * 0.88, H * 0.8, 40);
+  // but they make the whole wall read TARGET RANGE at a glance). Keep them
+  // inboard of x ±1.9 booth-local — the prize cabinets cover the mural's
+  // outer ~0.4m and a half-hidden bullseye reads as a glitch.
+  bullseye(ctx, W * 0.155, H * 0.78, 40);
+  bullseye(ctx, W * 0.845, H * 0.8, 40);
 
   // red-and-cream striped curtain returns at both edges
   for (const side of [0, 1]) {
@@ -323,9 +325,43 @@ export function waveRailTexture(deep = '#1d5fa3', light = '#3aa0ff') {
 /**
  * Flat painted tin target silhouettes, transparent background (render with
  * alphaTest). Each carries a little bullseye — that's what says "shoot me".
- * kinds: 'duck' | 'rabbit' | 'bird' | 'star'.  gold: bonus paint job.
+ * kinds: 'duck' | 'rabbit' | 'bird' | 'star' | 'clown'.  gold: bonus paint.
  */
 export function targetTexture(kind, { gold = false } = {}) {
+  const c = drawTarget(kind, gold);
+  grain(c.getContext('2d'), 256, 256, 6);
+  return toTexture(c);
+}
+
+/**
+ * The silhouette's alpha as a small hit mask (1 = painted tin, 0 = air),
+ * so the hitscan can demand the OUTLINE be hit, not a bounding sphere.
+ * Downsampled with a per-cell max so thin outlines survive. Cached.
+ */
+const _maskCache = new Map();
+export function targetAlphaMask(kind, size = 64) {
+  const key = kind + ':' + size;
+  if (_maskCache.has(key)) return _maskCache.get(key);
+  const img = drawTarget(kind, false).getContext('2d').getImageData(0, 0, 256, 256).data;
+  const step = 256 / size;
+  const data = new Uint8Array(size * size);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      let a = 0;
+      for (let sy = 0; sy < step; sy += 2) {
+        for (let sx = 0; sx < step; sx += 2) {
+          a = Math.max(a, img[((y * step + sy) * 256 + x * step + sx) * 4 + 3]);
+        }
+      }
+      data[y * size + x] = a > 140 ? 1 : 0;
+    }
+  }
+  const mask = { data, size };
+  _maskCache.set(key, mask);
+  return mask;
+}
+
+function drawTarget(kind, gold) {
   const S = 256;
   const [c, ctx] = makeCanvas(S, S);
   ctx.clearRect(0, 0, S, S);
@@ -440,6 +476,62 @@ export function targetTexture(kind, { gold = false } = {}) {
     ctx.closePath(); ctx.fill();
     // small bullseye on the wing
     bullseye(ctx, 112, 124, 20);
+  } else if (kind === 'clown') {
+    // the WILD CLOWN — the rare specialty target that sneaks onto the
+    // conveyors. Big grinning face, party hat, gold ruff, red-nose bullseye.
+    ctx.strokeStyle = OUT;
+    // gold ruff collar peeking out under the chin
+    ctx.fillStyle = '#ffd23f';
+    for (let i = -3; i <= 3; i++) {
+      ctx.beginPath();
+      ctx.arc(128 + i * 26, 218, 20, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.lineWidth = 6;
+    for (let i = -3; i <= 3; i++) {
+      ctx.beginPath();
+      ctx.arc(128 + i * 26, 218, 20, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    // wild red hair tufts
+    ctx.fillStyle = '#e02249';
+    for (const [hx, hy, hr] of [[52, 120, 30], [40, 152, 26], [204, 120, 30], [216, 152, 26]]) {
+      ctx.beginPath(); ctx.arc(hx, hy, hr, 0, Math.PI * 2); ctx.fill();
+      ctx.lineWidth = 7; ctx.stroke();
+    }
+    // face
+    ctx.fillStyle = '#fff2e2';
+    ctx.lineWidth = 9;
+    ctx.beginPath();
+    ctx.ellipse(128, 146, 82, 76, 0, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+    // pointed party hat with a pompom
+    ctx.fillStyle = '#2f6fff';
+    ctx.beginPath();
+    ctx.moveTo(84, 84); ctx.lineTo(128, 6); ctx.lineTo(172, 84);
+    ctx.closePath();
+    ctx.fill();
+    ctx.lineWidth = 8; ctx.stroke();
+    star(ctx, 128, 56, 16, '#ffd23f', 'rgba(0,0,0,0)');
+    ctx.fillStyle = '#ffd23f';
+    ctx.beginPath(); ctx.arc(128, 10, 12, 0, Math.PI * 2); ctx.fill();
+    ctx.lineWidth = 5; ctx.stroke();
+    // starry eyes + painted brows
+    ctx.fillStyle = '#1b1b1b';
+    for (const ex of [96, 160]) {
+      ctx.beginPath(); ctx.arc(ex, 130, 9, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = '#1d2a63';
+    for (const ex of [96, 160]) {
+      ctx.beginPath(); ctx.arc(ex, 136, 17, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke();
+    }
+    // the enormous grin
+    ctx.strokeStyle = '#c2183c';
+    ctx.lineWidth = 11;
+    ctx.beginPath(); ctx.arc(128, 152, 48, Math.PI * 0.18, Math.PI * 0.82); ctx.stroke();
+    // red nose IS the bullseye
+    bullseye(ctx, 128, 150, 24, ['#e02249', '#ff8a9b', '#e02249']);
   } else {
     // spinner star: big gold star with a red bullseye heart
     star(ctx, 128, 128, 116, gold ? '#ffe9a0' : '#ffd23f', 'rgba(120,60,0,0.9)');
@@ -447,8 +539,7 @@ export function targetTexture(kind, { gold = false } = {}) {
     bullseye(ctx, 128, 128, 44);
   }
 
-  grain(ctx, S, S, 6);
-  return toTexture(c);
+  return c;
 }
 
 /* ---------------------------------------------------------- prize wheel ---- */

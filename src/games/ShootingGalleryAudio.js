@@ -176,6 +176,29 @@ export class ShootingGalleryAudio {
     if (jackpot) this.#burst(this.ctx, input, t, 5200, 0.5, 0.35, 0.2);
   }
 
+  /**
+   * The WILD CLOWN going off: a slide-whistle swoop up, a rude two-note
+   * squeeze-horn HONK, and a sprinkle of sparkle on top. Pure circus.
+   */
+  clownWhoop(at) {
+    if (this.ctx.state !== 'running') return;
+    const input = this.#slot(at, 1.0);
+    const t0 = this.ctx.currentTime + 0.002;
+    // slide whistle swooping up
+    this.#partial(this.ctx, input, t0, 520, 0.3, 0.3, 1250);
+    this.#partial(this.ctx, input, t0, 1040, 0.1, 0.3, 2500);
+    // squeeze-horn honk (two blasts, slightly flat the second time)
+    for (const [dt, det] of [[0.34, 1], [0.5, 0.94]]) {
+      this.#burst(this.ctx, input, t0 + dt, 340 * det, 2.4, 0.4, 0.12);
+      this.#partial(this.ctx, input, t0 + dt, 289 * det, 0.3, 0.14);
+      this.#partial(this.ctx, input, t0 + dt, 434 * det, 0.2, 0.12);
+      this.#partial(this.ctx, input, t0 + dt, 578 * det, 0.1, 0.1);
+    }
+    // sparkle on top
+    this.#partial(this.ctx, input, t0 + 0.66, 2093, 0.12, 0.25);
+    this.#partial(this.ctx, input, t0 + 0.74, 2637, 0.1, 0.3);
+  }
+
   /** The counter bell: a bright long brass DING that carries. */
   bellDing(at) {
     if (this.ctx.state !== 'running') return;
