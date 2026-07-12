@@ -16,10 +16,20 @@ import { shiny } from '../core/environment.js';
  * reload animation whirls it), then the barrel with an ejector lug under
  * it and a blade sight at the muzzle. Painted-steel body + per-gun accent
  * so the two counter guns read as a pair, not clones.
+ *
+ * THE SIGHT PLANE IS GAMEPLAY GEOMETRY. Players aim by lining up the rear
+ * notch with the front blade, so both tops sit at exactly SIGHT_PLANE_Y
+ * and the shot ray leaves from the `aim` anchor ON that line — point of
+ * aim IS point of impact. Nothing may poke above the plane between the
+ * notch and the blade: the first hammer stood a centimetre proud of the
+ * strap, players sighted over IT, and every shot flew ~3° high (~18cm at
+ * the backdrop). The hammer now lies cocked back below the plane.
  */
 
-/** gun-local position of the muzzle (bullets/flash spawn here) */
+/** gun-local position of the muzzle (flash/smoke spawn here) */
 export const GUN_MUZZLE = new THREE.Vector3(0, 0.064, -0.2);
+/** gun-local height of the notch/blade sight line */
+export const SIGHT_PLANE_Y = 0.0835;
 
 let _shared = null;
 function shared() {
@@ -34,12 +44,13 @@ function shared() {
     drumGeo: new THREE.CylinderGeometry(0.023, 0.023, 0.044, 12).rotateX(Math.PI / 2),
     boreGeo: new THREE.CylinderGeometry(0.0052, 0.0052, 0.046, 8).rotateX(Math.PI / 2),
     frameGeo: new THREE.BoxGeometry(0.024, 0.032, 0.09),
-    topStrapGeo: new THREE.BoxGeometry(0.016, 0.008, 0.06),
+    topStrapGeo: new THREE.BoxGeometry(0.016, 0.008, 0.082),
     gripGeo: new THREE.BoxGeometry(0.03, 0.096, 0.04),
     buttGeo: new THREE.BoxGeometry(0.034, 0.012, 0.044),
-    hammerGeo: new THREE.BoxGeometry(0.009, 0.024, 0.014),
-    hammerSpurGeo: new THREE.BoxGeometry(0.014, 0.008, 0.01),
+    hammerGeo: new THREE.BoxGeometry(0.008, 0.02, 0.012),
+    hammerSpurGeo: new THREE.BoxGeometry(0.012, 0.006, 0.012),
     sightGeo: new THREE.BoxGeometry(0.004, 0.011, 0.014),
+    rearSightGeo: new THREE.BoxGeometry(0.003, 0.007, 0.012),
     guardGeo: new THREE.TorusGeometry(0.017, 0.0032, 6, 14).rotateY(Math.PI / 2),
     triggerGeo: new THREE.BoxGeometry(0.006, 0.018, 0.007),
     ringGeo: new THREE.TorusGeometry(0.009, 0.0022, 6, 12).rotateX(Math.PI / 2),
@@ -77,13 +88,20 @@ export function buildRevolver(accent = 0xe02249) {
   ring.position.set(0, -0.062, 0.004);
   grip.add(ring);
 
-  // frame + top strap
+  // frame + top strap running all the way back to carry the rear sight
   const frame = new THREE.Mesh(s.frameGeo, s.steel);
   frame.position.set(0, 0.052, -0.018);
   gun.add(frame);
   const strap = new THREE.Mesh(s.topStrapGeo, s.steel);
-  strap.position.set(0, 0.072, -0.05);
+  strap.position.set(0, 0.072, -0.044);
   gun.add(strap);
+  // rear sight: two little posts flanking a notch, tops exactly on the
+  // sight plane so lining them up with the blade IS the shot line
+  for (const px of [-0.0045, 0.0045]) {
+    const post = new THREE.Mesh(s.rearSightGeo, s.darkSteel);
+    post.position.set(px, SIGHT_PLANE_Y - 0.0035, -0.009);
+    gun.add(post);
+  }
 
   // six-shot cylinder drum — a GROUP so the bores spin with it on reload
   const drum = new THREE.Group();
@@ -106,16 +124,20 @@ export function buildRevolver(accent = 0xe02249) {
   lug.position.set(0, 0.048, -0.13);
   gun.add(lug);
   const sight = new THREE.Mesh(s.sightGeo, s.brass);
-  sight.position.set(0, 0.078, -0.192);
+  sight.position.set(0, SIGHT_PLANE_Y - 0.0055, -0.192); // top on the plane
   gun.add(sight);
 
-  // hammer (snaps back on every shot) with a little thumb spur
+  // hammer: lies cocked back BELOW the sight plane (see header — a proud
+  // hammer becomes the de-facto rear sight and throws every shot high),
+  // and snaps further back on every shot
   const hammer = new THREE.Group();
-  hammer.position.set(0, 0.07, 0.028);
+  hammer.position.set(0, 0.064, 0.03);
   const hammerBody = new THREE.Mesh(s.hammerGeo, s.darkSteel);
-  hammerBody.position.y = 0.008;
+  hammerBody.position.set(0, 0.006, 0.002);
+  hammerBody.rotation.x = -0.55;
   const spur = new THREE.Mesh(s.hammerSpurGeo, s.darkSteel);
-  spur.position.set(0, 0.02, 0.006);
+  spur.position.set(0, 0.013, 0.009);
+  spur.rotation.x = -0.35;
   hammer.add(hammerBody, spur);
   gun.add(hammer);
 
@@ -128,10 +150,15 @@ export function buildRevolver(accent = 0xe02249) {
   trigger.rotation.x = 0.25;
   gun.add(trigger);
 
-  // muzzle anchor — world position/direction source for shots and flash
+  // muzzle anchor — where the flash and smoke spawn
   const muzzle = new THREE.Object3D();
   muzzle.position.copy(GUN_MUZZLE);
   gun.add(muzzle);
+  // aim anchor ON the sight line — shots originate here, straight out -Z,
+  // so what the player lines up is exactly what the BB hits
+  const aim = new THREE.Object3D();
+  aim.position.set(0, SIGHT_PLANE_Y, -0.19);
+  gun.add(aim);
 
-  return { group: gun, drum, hammer, muzzle };
+  return { group: gun, drum, hammer, muzzle, aim };
 }
