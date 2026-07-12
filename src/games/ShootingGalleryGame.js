@@ -58,14 +58,14 @@ const FLIP_TIME = 0.22, RISE_TIME = 0.3;
 const HOLE_LIFE = 10;
 
 /**
- * Hand-local hold for the six-shooter. XR numbers were seeded from the
- * dart's tuned grip geometry and are LIVE-TUNABLE on the headset with the
- * GunGripTuner (hold a gun, squeeze the empty hand's grip) — read the
- * panel and bake keepers back here. Desktop overrides the canned XR swing:
- * the desktop hand frame IS the camera frame, so the barrel just points
- * straight down the view with a whisker of lift.
+ * Hand-local hold for the six-shooter. XR numbers were DIALLED IN ON THE
+ * HEADSET with the GunGripTuner (hold a gun, squeeze the empty hand's
+ * grip) and baked back here — if the grip ever needs re-tuning, do it
+ * there and copy the panel numbers, don't guess. Desktop overrides the
+ * canned XR swing: the desktop hand frame IS the camera frame, so the
+ * barrel just points straight down the view with a whisker of lift.
  */
-const GUN_HOLD = { palm: 0.02, fingers: 0.015, up: 0.01, noseUp: 55 };
+const GUN_HOLD = { palm: 0.051, fingers: -0.006, up: 0.016, noseUp: 55.8 };
 function gunHoldQuat(noseUpDeg) {
   const q = noseOutHoldQuat(noseUpDeg);
   q.desktop = new THREE.Quaternion()
@@ -564,10 +564,12 @@ export class ShootingGalleryGame extends MiniGame {
     gun.flashLife = 0.055;
     this.#puff(muzzleWorld, 0xcfc8bd, 0.06, 0.3);
 
-    // the shot ray: the barrel in XR, the view (crosshair) on desktop
+    // the shot ray: in XR it leaves from the SIGHT LINE (the aim anchor on
+    // the notch/blade plane, see revolverMesh) so a carefully sighted shot
+    // lands exactly on the point of aim; on desktop it's the view ray
     if (this.deps.input.isXR && hand) {
       _v2.set(0, 0, -1).applyQuaternion(gun.mesh.getWorldQuaternion(_q1));
-      this.#hitscan(muzzleWorld, _v2.normalize());
+      this.#hitscan(gun.parts.aim.getWorldPosition(_v1), _v2.normalize());
     } else {
       const cam = this.deps.world.camera;
       cam.getWorldPosition(_v1);
