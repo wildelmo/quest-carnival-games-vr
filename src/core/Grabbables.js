@@ -11,13 +11,18 @@ import { REST_PITCH_DEG } from './Hands.js';
  *  - Desktop: click grabs the nearest object in front of the camera,
  *    clicking again throws it along the view direction.
  *
- * HOLDING IS NATURAL: grabbing captures the object's pose relative to the
- * hand at that instant, and the object rides the wrist from there — pick a
- * dart up sideways and it stays sideways in your fingers until you turn it,
- * exactly like lifting any real object. Nothing is ever snapped to a canned
- * "aim" orientation. (Only the POSITION eases toward the hand over a few
- * frames, so a long-armed desktop grab doesn't leave the object floating
- * half a metre from the hand.)
+ * HOLDING IS NATURAL BY DEFAULT: grabbing captures the object's pose
+ * relative to the hand at that instant, and the object rides the wrist from
+ * there — pick a ball up sideways and it stays sideways in your fingers
+ * until you turn it, exactly like lifting any real object. (Only the
+ * POSITION eases toward the hand over a few frames, so a long-armed desktop
+ * grab doesn't leave the object floating half a metre from the hand.)
+ *
+ * A grabbable can opt OUT of natural orientation with `holdQuat`: over the
+ * same settle it swings into a canned hand-local pose. Darts use this —
+ * however you pluck one from the tray it seats itself nose-out over the
+ * fingertips, in the classic pinch grip, ready to throw (paired with the
+ * glove's holdPose: 'pinch', see Hands.js).
  *
  * WHERE it settles is `holdOffset` — anatomical metres out of the palm /
  * along the fingers / out of the fist top, converted per hand by
@@ -29,6 +34,14 @@ import { REST_PITCH_DEG } from './Hands.js';
  * A grabbable with a physics `body` gets its body disabled while held and
  * re-enabled with the throw velocity on release. Objects without a body
  * (darts) receive the velocity via their `onThrow` callback instead.
+ *
+ * TOOLS THAT FIRE WHILE HELD (the gallery six-shooters) set
+ * `onTriggerFire`: in XR every trigger edge while holding calls it (the
+ * edge that performed the grab itself doesn't also fire), and on desktop
+ * a click while holding fires instead of throwing. Pair it with
+ * `gripRelease: true` so only letting go of the SQUEEZE drops the object —
+ * without it, a player who grabbed the gun with the trigger would drop it
+ * on their first shot's release.
  */
 
 const _v1 = new THREE.Vector3();
@@ -46,6 +59,26 @@ const COS_P = Math.cos(PITCH), SIN_P = Math.sin(PITCH);
 // desktop glove display offset + scale, mirrored from Hands.js #update
 const DESKTOP_GLOVE_OFFSET = new THREE.Vector3(0.05, -0.05, 0);
 const DESKTOP_GLOVE_SCALE = 0.8;
+
+const _X = new THREE.Vector3(1, 0, 0);
+
+/**
+ * Canned hold orientation for an object modelled nose-along--Z (darts):
+ * the nose runs out along the glove's finger axis, tipped back up toward
+ * the fist top by noseUpDeg. In XR grip space the finger axis lies 90° -
+ * REST_PITCH below the fist-top -Z, so the swing is a rotation about grip
+ * X — the palm-normal axis, which is the same axis for both hands, so one
+ * pair of quats mirrors correctly. On desktop the hand frame IS glove
+ * model space (fingers along -Z), so the nose maps straight to -Z.
+ */
+export function noseOutHoldQuat(noseUpDeg = 0) {
+  const up = THREE.MathUtils.degToRad(noseUpDeg);
+  return {
+    xr: new THREE.Quaternion().setFromAxisAngle(_X, -(Math.PI / 2 - PITCH - up)),
+    desktop: new THREE.Quaternion().setFromAxisAngle(_X, up),
+    noseUpDeg,   // kept so the DartGripTuner's reset restores the shipped angle
+  };
+}
 
 export class Grabbable {
   constructor(object, opts = {}) {
@@ -65,11 +98,26 @@ export class Grabbable {
     this.holdOffset = { palm: 0.05, fingers: 0.02, up: 0, ...(opts.holdOffset ?? {}) };
     /** finger curl while holding this (0..1) — fat objects keep a wider fist */
     this.holdCurl = opts.holdCurl ?? 0.72;
+    /**
+     * Optional canned hand-local orientation `{ xr, desktop }` (see
+     * noseOutHoldQuat). When set, the object swings from its grabbed pose
+     * into this one as the grab settles instead of riding the wrist in
+     * whatever orientation it was picked up in.
+     */
+    this.holdQuat = opts.holdQuat ?? null;
+    /** named glove pose while held ('pinch' for darts) — read by Hands */
+    this.holdPose = opts.holdPose ?? null;
     /** throw assist multiplier — casual flicks should still reach the targets */
     this.throwBoost = opts.throwBoost ?? 1.3;
     this.onGrab = opts.onGrab ?? null;
     /** (velocity: Vector3, hand) — called on release for bodiless objects */
     this.onThrow = opts.onThrow ?? null;
+    /** (hand) — trigger edge while held fires the tool instead of nothing;
+     *  on desktop, click-while-holding fires instead of throwing */
+    this.onTriggerFire = opts.onTriggerFire ?? null;
+    /** XR: only releasing the grip squeeze lets go (trigger taps never drop) */
+    this.gripRelease = opts.gripRelease ?? false;
+    this._grabbedThisFrame = false;
     // captured at grab time: hand-local pose of the object
     this._grabQuat = new THREE.Quaternion();
     this._grabPos = new THREE.Vector3();
@@ -89,6 +137,7 @@ export class Grabbables {
     this.audio = audio;
     this.items = [];
     this.held = [null, null]; // per hand index
+    this._prevGrip = [false, false]; // squeeze state last frame (gripRelease)
     world.onUpdate((dt) => this.#update(dt));
   }
 
@@ -134,15 +183,31 @@ export class Grabbables {
         if (!holding) {
           this.#tryGrab(hand);
         } else if (!isXR) {
-          // desktop: second click = throw forward
-          this.#release(hand, /*desktopThrow*/ true);
+          // desktop: second click = fire the held tool, or throw forward
+          if (holding.onTriggerFire) holding.onTriggerFire(hand);
+          else this.#release(hand, /*desktopThrow*/ true);
         }
       }
-      if (hand.justReleased && holding && isXR) {
+      if (hand.justReleased && holding && isXR && !holding.gripRelease) {
         this.#release(hand, false);
       }
+      // held tools: trigger edges fire; gripRelease items only leave the
+      // hand when the squeeze is released (so shooting never drops the gun)
+      const tool = this.held[idx];
+      if (tool && isXR) {
+        if (tool.onTriggerFire && hand.justTriggered && !tool._grabbedThisFrame) {
+          tool.onTriggerFire(hand);
+        }
+        if (tool.gripRelease && this._prevGrip[idx] && !hand.gripPressed) {
+          this.#release(hand, false);
+        }
+      }
+      if (tool) tool._grabbedThisFrame = false;
+      this._prevGrip[idx] = hand.gripPressed;
       // follow the hand while held: the pose captured at grab time rides
-      // the wrist 1:1 — turn your hand, the object turns with it
+      // the wrist 1:1 — turn your hand, the object turns with it. A
+      // holdQuat overrides that: the object swings into its canned grip
+      // orientation over the same settle as the position.
       const g = this.held[idx];
       if (g) {
         g._settle = Math.min(1, g._settle + dt / SETTLE_TIME);
@@ -150,7 +215,13 @@ export class Grabbables {
         _v1.lerpVectors(g._grabPos, this.#holdAnchor(g, hand, _v2), k);
         g.object.position.copy(_v1).applyQuaternion(hand.gripQuaternion)
           .add(hand.gripPosition);
-        g.object.quaternion.copy(hand.gripQuaternion).multiply(g._grabQuat);
+        g.object.quaternion.copy(hand.gripQuaternion);
+        if (g.holdQuat) {
+          const snap = this.input.isXR ? g.holdQuat.xr : g.holdQuat.desktop;
+          g.object.quaternion.multiply(_q1.copy(g._grabQuat).slerp(snap, k));
+        } else {
+          g.object.quaternion.multiply(g._grabQuat);
+        }
       }
     }
   }
@@ -175,9 +246,14 @@ export class Grabbables {
         -fingers * SIN_P - up * COS_P,
       );
     }
-    // desktop glove: palm faces -Y, fingers reach -Z, fist top is +Y
+    // desktop glove: the hand frame IS glove model space, so the anatomy
+    // maps exactly — palm faces -Y, fingers reach -Z, and the fist-top
+    // "up" axis (the thumb side of a handshake grip) is -X of the right
+    // glove the desktop hand always wears
     return out.copy(DESKTOP_GLOVE_OFFSET).add(_v1.set(
-      0, (up - palm) * DESKTOP_GLOVE_SCALE, -fingers * DESKTOP_GLOVE_SCALE));
+      -up * DESKTOP_GLOVE_SCALE,
+      -palm * DESKTOP_GLOVE_SCALE,
+      -fingers * DESKTOP_GLOVE_SCALE));
   }
 
   /** nearest free grabbable within this hand's reach, or null */
@@ -209,6 +285,7 @@ export class Grabbables {
     best._grabQuat.copy(_q1).multiply(best.object.quaternion);
     best._grabPos.copy(best.object.position).sub(hand.gripPosition).applyQuaternion(_q1);
     best._settle = 0;
+    best._grabbedThisFrame = true; // the grabbing trigger edge mustn't also fire
     hand.pulse(0.4, 30);
     if (best.onGrab) best.onGrab(hand);
   }

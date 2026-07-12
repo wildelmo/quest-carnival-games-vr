@@ -20,12 +20,18 @@ hand is near something you can grab.
 
 **Playable now:**
 
-- **🎯 Down the Clown (ball toss)** — a chute dispenses six foam softballs into your tray.
-  Knock down the wall of plush carnival clowns (5 wide, 4 shelves) before
-  the timer runs out. Targets wobble on glancing hits and slam backwards on
-  solid ones; balls bounce around the stall, get swept into the grate at
-  the base of the wall and ride the return pipe back to your tray.
-  Rows score 10–40, clear the board for a bonus.
+- **🎯 Down the Clown (ball toss)** — a chute dispenses six dense
+  fabric-skinned balls into your tray: they throw and land like small
+  sandbags, not hollow plastic. Knock down the wall of plush carnival
+  clowns (5 wide, 4 shelves) before the timer runs out. A solid hit lands
+  with a deep THUNK — synthesized wooden-core thump and cloth whump under
+  a pitched-down recorded punch — and the ball punches *through* the doll
+  as it slams backwards, momentum spent instead of bounced back; glancing
+  hits wobble the doll and drop the ball dead. Balls get swept into the
+  wall-to-wall grate at the base of the wall and ride the return pipe
+  back to your tray, and a watchdog sweeps up any ball that settles
+  somewhere unreachable, so all six always come back. Rows score 10–40,
+  clear the board for a bonus.
 - **🎈 Balloon Darts** — a 6ft × 5ft cork board packed with 35 jiggling
   balloons (three gold ones are worth extra). Throw darts, pop balloons
   (shards, real pop sound), darts stick in the cork. Hit the big red
@@ -45,8 +51,30 @@ hand is near something you can grab.
   at you — just like the real (honest-but-brutal) game. RESET sweeps
   every ring back into the bucket.
 
-Three more pads stand roped off with "coming soon" marquees:
-Milk Bottles, Whack-a-Mole, Skee-Ball.
+- **🔫 Shooting Gallery** — a deep double-wide cabinet (it took over the
+  old whack-a-mole and skee-ball pads): a painted countryside backdrop,
+  three stepped conveyor rows of tin animal silhouettes — ducks waddling
+  one way, rabbits hopping the other, quick little bluebirds along the
+  top — sliding behind scalloped water-wave rails and turning around out
+  of sight behind the prize cabinets. Two spinning star targets flank a
+  fez-wearing cymbal MONKEY who claps you a celebration every time your
+  score crosses a threshold (and chatters indignantly if you shoot him).
+  Two tethered toy six-shooters rest on the counter: grip to draw one
+  (the glove closes into a real pistol grip, its trigger finger riding
+  your analog trigger), trigger to fire — no reloading, the cylinder just
+  clicks round a fresh chamber forever. Hits ring each target's own tin
+  TING and slap the plate down; misses leave fading dents in the
+  paintwork. Downed animals pop back up as the conveyor carries them
+  behind the cabinets, so the wall never runs empty. And the cabinet is
+  crowded with sideshow shots, like the real travelling galleries: a
+  carnival PRIZE WHEEL that spins against a clacking flapper and pays
+  whatever wedge it lands on (the gold 200 wedge earns a monkey ovation),
+  four small gold-rimmed precision pips worth a fat payout (two hide
+  behind the duck row), a brass bell over the big top that rings and
+  swings, spiral lollipops that whirl when clipped — and the painted sun
+  hides a once-a-round bonus for anyone who thinks to shoot it.
+
+One more pad stands roped off with a "coming soon" marquee: Milk Bottles.
 
 A brass **EXIT bell** on a striped post by the tent's centre pole ends the
 experience — pull its cord (or press `E` on desktop) to ring out, drop back
@@ -79,8 +107,9 @@ instead* gives you a mouse/keyboard version of the same tent.
 | Move | left stick (smooth walk) | WASD (+Shift to hurry) |
 | Turn | right stick left/right = 30° snap | mouse look (click to lock pointer) |
 | Teleport | push right stick forward, aim arc, release | — |
-| Grab ball/dart/ring | grip or trigger near the object | click (nearest object ahead) |
+| Grab ball/dart/ring/gun | grip or trigger near the object | click (nearest object ahead) |
 | Throw | swing arm + release grip | click again (throws along view) |
+| Fire six-shooter (endless ammo) | trigger while holding it (grip release puts it down) | click again (fires along view) |
 | Buttons / exit bell | physically poke / touch | look at it up close, press `E` |
 
 ## Project layout
@@ -111,10 +140,15 @@ src/
                      carousel, crowds, fireworks, searchlights
   games/
     registry.js      MiniGame base class + how-to-add-a-booth notes
-    BallTossGame.js
+    BallTossGame.js  sandbag-ball flight, punch-through knockdowns, ball return
+    BallTossAudio.js synthesized sandbag-on-doll thunk voice
     BalloonDartGame.js
     RingTossGame.js  rigid-ring flight + analytic bottle-lattice contacts
     RingTossAudio.js modal-synth plastic-on-glass voice (per-bottle pitch)
+    ShootingGalleryGame.js   conveyor targets, cymbal monkey, six-shooters
+    ShootingGalleryAudio.js  cork-gun pop, per-target tin TING, cymbals
+    galleryTextures.js       painted backdrop, silhouettes, wave rails
+    revolverMesh.js          the tethered toy six-shooter
 public/assets/       CC0 sounds, free music, OFL fonts (see CREDITS.md)
 ```
 
@@ -165,6 +199,14 @@ knockdown, wood knocks for darts thunking into cork and rings rapping the
 stalls) plus **recorded balloon bursts** (MIT, from the Super-Darts
 project) — with random variation and pitch jitter; the music is a free
 ragtime track by **Anttis Instrumentals**.
+
+The ball toss gets a dedicated impact voice
+(`src/games/BallTossAudio.js`): every doll strike layers a synthesized
+low pitch-dropping thump (the wooden core) and a band-limited cloth
+"whump" under the recorded punch samples, pitched down so a knockdown
+reads as a small sandbag burying itself in a cloth-wrapped doll rather
+than plastic bouncing off rubber; floor, shelf and wall contacts reuse
+the same dead thump under muted wood/canvas layers.
 
 The ring toss gets its own physically-modelled voice on top
 (`src/games/RingTossAudio.js`): every ring–bottle contact is modal

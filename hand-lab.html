@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>hand lab — dart grip diagnostic</title>
+  <style>
+    body { margin: 0; background: #14161f; color: #eee; font: 12px/1.5 monospace; overflow: hidden; }
+    #panel {
+      position: fixed; top: 8px; left: 8px; width: 240px; z-index: 2;
+      background: rgba(10, 12, 20, 0.88); border: 1px solid #333; border-radius: 8px; padding: 10px;
+    }
+    #panel label { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+    #panel label span.name { width: 74px; flex: none; }
+    #panel label span.val { width: 46px; flex: none; text-align: right; color: #ffd23f; }
+    #panel input[type=range] { flex: 1; min-width: 0; }
+    #panel h3 { margin: 8px 0 2px; font-size: 12px; color: #7fb4ff; }
+    #views { position: fixed; bottom: 8px; left: 8px; z-index: 2; display: flex; gap: 4px; flex-wrap: wrap; max-width: 70vw; }
+    #views button { background: #222738; color: #eee; border: 1px solid #444; border-radius: 6px; padding: 4px 8px; font: 11px monospace; cursor: pointer; }
+    #views button:hover { background: #32405e; }
+    #readout { position: fixed; top: 8px; right: 8px; z-index: 2; background: rgba(10,12,20,0.88); border: 1px solid #333; border-radius: 8px; padding: 8px 10px; white-space: pre; text-align: right; color: #9adf9a; }
+  </style>
+</head>
+<body>
+<div id="panel"></div>
+<div id="views"></div>
+<div id="readout"></div>
+<script type="module">
+/**
+ * HAND LAB — offline diagnostic for the dart pinch grip.
+ *
+ * Renders the REAL in-game right glove (buildGlove + GRIP_ALIGN, exactly as
+ * Hands.js mounts it on the XR controller grip) holding the REAL dart mesh,
+ * placed by the same holdOffset/noseOutHoldQuat math Grabbables uses. Orbit
+ * with the mouse, tweak the pose with the sliders, then bake winning numbers
+ * into PINCH (Hands.js) and the dart's holdOffset (BalloonDartGame.js).
+ *
+ * Dev-only: `npx vite` then open /hand-lab.html — not part of the app build.
+ * Scriptable via window.__lab { setParams, getParams, view, report }.
+ */
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { buildGlove, GRIP_ALIGN, PINCH, REST_PITCH_DEG } from '/src/core/Hands.js';
+import { noseOutHoldQuat } from '/src/core/Grabbables.js';
+import { buildDartMesh, DART_GRIP_Z, DART_BARREL_R } from '/src/games/dartMesh.js';
+
+const PITCH = THREE.MathUtils.degToRad(REST_PITCH_DEG);
+const COS_P = Math.cos(PITCH), SIN_P = Math.sin(PITCH);
+
+/* ------------------------------------------------------------ scene ---- */
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(devicePixelRatio);
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1e2b);
+const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.01, 10);
+camera.position.set(0.25, 0.12, 0.25);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, -0.03, -0.04);
+
+scene.add(new THREE.HemisphereLight(0xfff2dd, 0x39435e, 1.15));
+const key = new THREE.DirectionalLight(0xffffff, 1.6);
+key.position.set(0.6, 1, 0.4);
+scene.add(key);
+const fill = new THREE.DirectionalLight(0x88aaff, 0.5);
+fill.position.set(-0.6, -0.3, -0.5);
+scene.add(fill);
+scene.add(new THREE.GridHelper(0.6, 12, 0x333a4d, 0x232838).translateY(-0.16));
+
+// the glove, mounted exactly like Hands.js mounts it on the XR grip
+const glove = buildGlove('right');
+glove.group.quaternion.copy(GRIP_ALIGN.right);
+scene.add(glove.group);
+
+// ghost of the controller handle (grip space: handle runs along Z)
+const handle = new THREE.Mesh(
+  new THREE.CapsuleGeometry(0.016, 0.09, 4, 10),
+  new THREE.MeshLambertMaterial({ color: 0x666a7a, transparent: true, opacity: 0.28 }),
+);
+handle.rotation.x = Math.PI / 2;
+handle.position.set(0, -0.01, 0.015);
+scene.add(handle);
+
+const dart = buildDartMesh(0xe02249);
+scene.add(dart);
+
+/* ----------------------------------------------------------- params ---- */
+const params = {
+  curl: 0.55,                 // holdCurl (base the pinch blends from)
+  pinch: 1,
+  index: PINCH.finger.index, middle: PINCH.finger.middle, outer: PINCH.finger.outer,
+  yawIndex: PINCH.yaw.index, yawMiddle: PINCH.yaw.middle,
+  thumbRootX: PINCH.thumb.rootX, thumbYaw: PINCH.thumb.yaw, thumbMidX: PINCH.thumb.midX,
+  palm: 0.053, fingers: 0.055, up: 0.03, noseUp: 0,
+};
+
+function apply() {
+  PINCH.finger.index = params.index;
+  PINCH.finger.middle = params.middle;
+  PINCH.finger.outer = params.outer;
+  PINCH.yaw.index = params.yawIndex;
+  PINCH.yaw.middle = params.yawMiddle;
+  PINCH.thumb.rootX = params.thumbRootX;
+  PINCH.thumb.yaw = params.thumbYaw;
+  PINCH.thumb.midX = params.thumbMidX;
+  glove.setPose(params.curl, params.pinch);
+  // dart via Grabbables#holdAnchor (XR, right hand: px = -1) + noseOutHoldQuat
+  dart.position.set(
+    -params.palm,
+    -params.fingers * COS_P + params.up * SIN_P,
+    -params.fingers * SIN_P - params.up * COS_P,
+  );
+  dart.quaternion.copy(noseOutHoldQuat(params.noseUp).xr);
+  scene.updateMatrixWorld(true);
+  readout.textContent = report().text;
+}
+
+/* --------------------------------------------------------- clearance ---- */
+// distance between two segments (for finger-capsule vs dart-shaft checks)
+function segSegDist(p1, q1, p2, q2) {
+  const d1 = q1.clone().sub(p1), d2 = q2.clone().sub(p2), r = p1.clone().sub(p2);
+  const a = d1.dot(d1), e = d2.dot(d2), f = d2.dot(r);
+  let s, t;
+  const c = d1.dot(r), b = d1.dot(d2), den = a * e - b * b;
+  s = den > 1e-12 ? THREE.MathUtils.clamp((b * f - c * e) / den, 0, 1) : 0;
+  t = (b * s + f) / e;
+  if (t < 0) { t = 0; s = THREE.MathUtils.clamp(-c / a, 0, 1); }
+  else if (t > 1) { t = 1; s = THREE.MathUtils.clamp((b - c) / a, 0, 1); }
+  const c1 = p1.clone().addScaledVector(d1, s), c2 = p2.clone().addScaledVector(d2, t);
+  return { d: c1.distanceTo(c2), s, t };
+}
+
+// finger geometry (mirrors Hands.js SEG sizes, wrap scale 0.88)
+const WRAP = 0.88;
+const SEGS = { s1: { r: 0.0165, end: -0.067 }, s2: { r: 0.0155, end: -0.057 },
+  t1: { r: 0.017, end: -0.058 }, t2: { r: 0.0155, end: -0.045 } };
+
+function report() {
+  scene.updateMatrixWorld(true);
+  const joints = { fingers: [], thumb: null };
+  glove.group.traverse((o) => {
+    if (/^fingerMid\d$/.test(o.name)) joints.fingers[+o.name.slice(-1)] = o;
+    if (o.name === 'thumbMid') joints.thumb = o;
+  });
+  // dart shaft segment: needle tip (z=-0.1) to flights (z=+0.092)
+  const nose = new THREE.Vector3(0, 0, -1).applyQuaternion(dart.quaternion);
+  const tipW = dart.position.clone().addScaledVector(nose, 0.1);
+  const tailW = dart.position.clone().addScaledVector(nose, -0.092);
+  const lines = [];
+  const out = { clear: {}, text: '' };
+  const check = (name, mid, seg1, seg2) => {
+    const root = mid.parent;
+    const a = root.getWorldPosition(new THREE.Vector3());
+    const b = mid.getWorldPosition(new THREE.Vector3());
+    const c = mid.localToWorld(new THREE.Vector3(0, 0, seg2.end));
+    // clearance = surface gap between finger capsule and barrel cylinder
+    const d1 = segSegDist(a, b, tipW, tailW);
+    const d2 = segSegDist(b, c, tipW, tailW);
+    const g1 = d1.d - seg1.r * WRAP - DART_BARREL_R;
+    const g2 = d2.d - seg2.r * WRAP - DART_BARREL_R;
+    out.clear[name] = { base: +g1.toFixed(4), tip: +g2.toFixed(4) };
+    lines.push(`${name}  base ${(g1 * 1000).toFixed(1)}mm  tip ${(g2 * 1000).toFixed(1)}mm`);
+  };
+  check('index ', joints.fingers[0], SEGS.s1, SEGS.s2);
+  check('middle', joints.fingers[1], SEGS.s1, SEGS.s2);
+  check('outer ', joints.fingers[2], SEGS.s1, SEGS.s2);
+  check('thumb ', joints.thumb, SEGS.t1, SEGS.t2);
+  out.text = 'dart clearance (surface gap,\nnegative = overlapping)\n' + lines.join('\n');
+  return out;
+}
+
+/* --------------------------------------------------------------- ui ---- */
+const panel = document.getElementById('panel');
+const readout = document.getElementById('readout');
+const DEFS = [
+  ['h3', 'glove pose'],
+  ['curl', 0, 1, 0.01], ['pinch', 0, 1, 0.01],
+  ['index', 0, 1, 0.01], ['middle', 0, 1, 0.01], ['outer', 0, 1, 0.01],
+  ['yawIndex', -0.3, 0.6, 0.01], ['yawMiddle', -0.3, 0.6, 0.01],
+  ['thumbRootX', -1.5, 0.5, 0.01], ['thumbYaw', -0.8, 1.2, 0.01], ['thumbMidX', -1.5, 0.2, 0.01],
+  ['h3', 'dart hold'],
+  ['palm', 0, 0.12, 0.001], ['fingers', -0.02, 0.12, 0.001], ['up', -0.05, 0.09, 0.001],
+  ['noseUp', -30, 30, 0.5],
+];
+const valEls = {};
+for (const d of DEFS) {
+  if (d[0] === 'h3') {
+    const h = document.createElement('h3'); h.textContent = d[1]; panel.appendChild(h);
+    continue;
+  }
+  const [k, min, max, step] = d;
+  const row = document.createElement('label');
+  const input = Object.assign(document.createElement('input'),
+    { type: 'range', min, max, step, value: params[k] });
+  const val = Object.assign(document.createElement('span'), { className: 'val', textContent: params[k] });
+  valEls[k] = { input, val };
+  input.addEventListener('input', () => {
+    params[k] = +input.value; val.textContent = input.value; apply();
+  });
+  row.append(Object.assign(document.createElement('span'), { className: 'name', textContent: k }), input, val);
+  panel.appendChild(row);
+}
+
+// canonical camera views (grip space, right hand: palm -X, fingers ~-Y, fist top -Z)
+const VIEWS = {
+  back:  [0.32, 0, 0],           // looking at the back of the hand
+  palm:  [-0.32, 0, 0],          // looking at the palm (dart side)
+  top:   [0, 0.1, -0.3],         // down the fist-top onto thumb + nose
+  nose:  [0, -0.3, -0.18],       // from where the dart points, looking back
+  tail:  [0, 0.28, 0.2],         // from behind the flights
+  quarter: [0.22, -0.16, -0.2],  // 3/4: palm-nose side
+};
+const views = document.getElementById('views');
+for (const [name, pos] of Object.entries(VIEWS)) {
+  const b = document.createElement('button');
+  b.textContent = name;
+  b.onclick = () => setView(name);
+  views.appendChild(b);
+}
+function setView(name) {
+  const p = VIEWS[name];
+  camera.position.set(p[0], p[1], p[2]);
+  controls.target.set(0, -0.04, -0.03);
+  controls.update();
+}
+
+// world (grip-space) centres of the tip-pad spheres — for scripted placement
+function tips() {
+  scene.updateMatrixWorld(true);
+  const joints = { fingers: [], thumb: null };
+  glove.group.traverse((o) => {
+    if (/^fingerMid\d$/.test(o.name)) joints.fingers[+o.name.slice(-1)] = o;
+    if (o.name === 'thumbMid') joints.thumb = o;
+  });
+  const tip = (o, end) => o.localToWorld(new THREE.Vector3(0, 0, end));
+  return {
+    index: tip(joints.fingers[0], -0.0415),
+    middle: tip(joints.fingers[1], -0.0415),
+    outer: tip(joints.fingers[2], -0.0415),
+    thumb: tip(joints.thumb, -0.0295),
+  };
+}
+
+window.__lab = {
+  tips,
+  setParams(p) {
+    Object.assign(params, p);
+    for (const [k, els] of Object.entries(valEls)) {
+      els.input.value = params[k]; els.val.textContent = params[k];
+    }
+    apply();
+  },
+  getParams: () => ({ ...params }),
+  view: setView,
+  report,
+  ready: true,
+};
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+apply();
+setView('quarter');
+renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
+</script>
+</body>
+</html>
