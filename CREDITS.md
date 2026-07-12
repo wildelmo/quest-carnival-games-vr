@@ -31,13 +31,13 @@ peak-normalized for the game; original files named `impact_glass_*` /
 
 | File(s) | Used for |
 |---|---|
-| `glassLight1-5.wav` | ring tinking off a bottle crown, ringer landing on the shoulder |
-| `glassMedium1-5.wav` | ring clattering off the glass, wedging between bottles |
-| `glassHeavy1-5.wav` | hard clanks into the packed bottle field |
+| `glassLight1-5.wav` | body layer under the ring toss's hard glass hits and ringer landings (the per-contact clink itself is synthesized — see below) |
+| `glassMedium1-5.wav` | body layer under rings wedging between bottles |
+| `glassHeavy1-5.wav` | kept for future booths |
 | `mittThud1-5.wav` | ball-toss knockdown — heavy catcher's-mitt body |
 | `mittThudSoft1-5.wav` | glancing ball hits that wobble a target |
 | `knock1-5.wav` (`impact_plank_*`) | dart thunking into the cork, dolls clacking upright, rings/balls rapping the stall woodwork |
-| `tick1-5.wav` (`impact_generic_light_*`) | rings settling flat, darts re-racking, ball chute, dome-button clack |
+| `tick1-5.wav` (`impact_generic_light_*`) | rings landing on wood/floor/bucket, darts re-racking, ball chute, dome-button clack |
 
 ## Balloon pop — Super-Darts (MIT)
 
@@ -58,10 +58,18 @@ Also redistributed with the Python Arcade library's asset bundle.
 
 ## Synthesized audio (WebAudio, generated at runtime)
 
-A few textures have no bundled recording and are synthesized in
-`src/core/AudioManager.js`, deliberately layered UNDER the real samples:
+A few textures have no bundled recording and are synthesized at runtime,
+deliberately layered WITH the real samples:
 
-- **Crowd murmur bed** — drop a real loop at
+- **Ring-on-bottle contacts** (`src/games/RingTossAudio.js`) — modal
+  synthesis: each contact is a hard-plastic "clak" (filtered noise
+  bursts) fused with a glass "tink" (inharmonic decaying partials).
+  Every one of the 324 bottles derives its own stable pitch from its
+  index, level and brightness follow impact speed, and the ringer
+  rattle-down / wobble ring-down sequences are scheduled on the WebAudio
+  clock. Recorded Kenney glass impacts still play underneath the hardest
+  hits for body.
+- **Crowd murmur bed** (`src/core/AudioManager.js`) — drop a real loop at
   `public/assets/sounds/ambience_crowd.ogg` and it is used automatically.
 - **Ball-rolling rumble** — filtered noise driven by each ball's speed.
 
