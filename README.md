@@ -33,10 +33,17 @@ hand is near something you can grab.
   a time — no instant respawns.
 - **⭕ Ring Toss** — a full square field of 324 glass soda bottles packed
   neck-to-neck in wooden crates, ten gold bottles hiding in the field.
-  Grab rings from the bucket (20 a round) and lob them: a flat ring over
-  a crown is a RINGER and slides down the neck; tilted rings clatter off
-  the glass and wedge between the shoulders, just like the real
-  (honest-but-brutal) game. RESET sweeps every ring back into the bucket.
+  Grab rings from the bucket (20 a round) and lob them. Rings are tiny
+  rigid bodies: they inherit your wrist flick as spin, tumble when they
+  clip a crown, ping crown-to-crown, and pinball down between the necks
+  with a quickening clatter before wedging between the shoulders — every
+  contact voiced as hard plastic on glass, and each of the 324 bottles
+  tinks at its own pitch. A flat ring over a crown is a RINGER: it
+  rattles down the neck, chinks onto the shoulder and wobbles itself
+  flat like a dropped coin. Misses skid and ring-down on the counter,
+  bridge flat across the crowns, or bounce clean off the front row back
+  at you — just like the real (honest-but-brutal) game. RESET sweeps
+  every ring back into the bucket.
 
 Three more pads stand roped off with "coming soon" marquees:
 Milk Bottles, Whack-a-Mole, Skee-Ball.
@@ -106,7 +113,8 @@ src/
     registry.js      MiniGame base class + how-to-add-a-booth notes
     BallTossGame.js
     BalloonDartGame.js
-    RingTossGame.js
+    RingTossGame.js  rigid-ring flight + analytic bottle-lattice contacts
+    RingTossAudio.js modal-synth plastic-on-glass voice (per-bottle pitch)
 public/assets/       CC0 sounds, free music, OFL fonts (see CREDITS.md)
 ```
 
@@ -150,13 +158,22 @@ haptics, and locomotion blockers.
 
 The soundscape is **diegetic-only**: no scoring chimes, round bells or
 jingles — the scoreboard is the feedback, and everything you hear is a
-physical event in the booth. All of it is real recorded samples — **CC0
-packs from Kenney.nl** (Impact Sounds: glass clinks for rings clattering
-off the bottle field, heavy punch impacts for the catcher's-mitt thud of a
-knockdown, wood knocks for darts thunking into cork) plus **recorded
-balloon bursts** (MIT, from the Super-Darts project) — with random
-variation and pitch jitter; the music is a free ragtime track by **Anttis
-Instrumentals**. Two ambience beds (crowd murmur, ball rolling) are
+physical event in the booth. The backbone is real recorded samples —
+**CC0 packs from Kenney.nl** (Impact Sounds: glass impacts under the ring
+toss's hardest hits, heavy punch impacts for the catcher's-mitt thud of a
+knockdown, wood knocks for darts thunking into cork and rings rapping the
+stalls) plus **recorded balloon bursts** (MIT, from the Super-Darts
+project) — with random variation and pitch jitter; the music is a free
+ragtime track by **Anttis Instrumentals**.
+
+The ring toss gets its own physically-modelled voice on top
+(`src/games/RingTossAudio.js`): every ring–bottle contact is modal
+synthesis — a hard-plastic "clak" fused with a glass "tink" whose level
+and brightness follow impact speed, and **each of the 324 bottles keeps
+its own pitch**, so a ring skittering across the field plays the little
+atonal melody you hear at a real boardwalk. Rattle-downs, wedge clinks
+and coin-style wobble ring-downs are scheduled sample-accurately on the
+WebAudio clock. Two ambience beds (crowd murmur, ball rolling) are also
 synthesized at runtime and can be replaced by dropping real files into
 `public/assets/sounds/` — see `CREDITS.md` for the full mapping and swap
 paths.

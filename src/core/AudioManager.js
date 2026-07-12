@@ -30,8 +30,9 @@ const SAMPLES = {
   mittThud:     ['mittThud1.wav', 'mittThud2.wav', 'mittThud3.wav', 'mittThud4.wav', 'mittThud5.wav'],
   mittThudSoft: ['mittThudSoft1.wav', 'mittThudSoft2.wav', 'mittThudSoft3.wav', 'mittThudSoft4.wav', 'mittThudSoft5.wav'],
   thud:       ['rockHit2.wav'],                      // gutter/grate clunk
-  // recorded glass impacts (Kenney Impact Sounds, CC0): rings clanking off
-  // the soda-bottle field, graded light -> heavy by impact speed
+  // recorded glass impacts (Kenney Impact Sounds, CC0): body layer under
+  // the ring toss's synthesized plastic-on-glass contacts (RingTossAudio
+  // voices the per-bottle clink itself); glassHeavy is kept for future booths
   glassLight:  ['glassLight1.wav', 'glassLight2.wav', 'glassLight3.wav', 'glassLight4.wav', 'glassLight5.wav'],
   glassMedium: ['glassMedium1.wav', 'glassMedium2.wav', 'glassMedium3.wav', 'glassMedium4.wav', 'glassMedium5.wav'],
   glassHeavy:  ['glassHeavy1.wav', 'glassHeavy2.wav', 'glassHeavy3.wav', 'glassHeavy4.wav', 'glassHeavy5.wav'],
