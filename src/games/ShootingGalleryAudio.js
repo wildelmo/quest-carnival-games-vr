@@ -12,10 +12,10 @@ import * as THREE from 'three';
  *
  * Everything is synthesized on the WebAudio clock through a small pool of
  * positional panners (RingTossAudio's pattern), so rapid fanning the
- * hammer or a 6-tick cylinder spin stays sample-accurate even when frames
- * hitch. The couple of woody thumps (a shot burying itself in the painted
- * backdrop, a target plate slapping down) layer the repo's real recorded
- * Kenney knocks underneath for body.
+ * hammer or the prize wheel's peg clatter stays sample-accurate even when
+ * frames hitch. The couple of woody thumps (a shot burying itself in the
+ * painted backdrop, a target plate slapping down) layer the repo's real
+ * recorded Kenney knocks underneath for body.
  */
 
 const POOL_SIZE = 10;
@@ -148,28 +148,44 @@ export class ShootingGalleryAudio {
     this.#partial(this.ctx, input, t0 + 0.002, 820 + Math.random() * 160, 0.14, 0.04);
   }
 
-  /** Hammer falling on a spent chamber — a dry double-click. */
-  dryFire(at) {
+  /* ---------------------------------------------------------- sideshow */
+
+  /**
+   * The prize wheel's flapper clacking over a peg. Pitch rises a touch
+   * with the wheel's speed so a hard spin sounds frantic, then lazy.
+   */
+  wheelTick(at, speed = 1) {
     if (this.ctx.state !== 'running') return;
-    const input = this.#slot(at, 0.08);
+    const input = this.#slot(at, 0.06);
     const t0 = this.ctx.currentTime + 0.002;
-    this.#burst(this.ctx, input, t0, 2600, 1.4, 0.32, 0.006);
-    this.#burst(this.ctx, input, t0 + 0.028, 1900, 1.2, 0.2, 0.005);
+    this.#burst(this.ctx, input, t0, 2500 + speed * 500, 1.2, 0.3, 0.006);
+    this.#burst(this.ctx, input, t0 + 0.003, 1050, 0.8, 0.16, 0.008);
   }
 
-  /** Cylinder whirling through a reload: even ratchet ticks over `dur`. */
-  reloadSpin(at, dur = 0.6) {
+  /** The wheel settling on a wedge: a rising little payout fanfare. */
+  wheelWin(at, jackpot = false) {
     if (this.ctx.state !== 'running') return;
-    const input = this.#slot(at, dur + 0.1);
-    let t = this.ctx.currentTime + 0.01;
-    const step = dur / 8;
-    for (let i = 0; i < 8; i++) {
-      this.#burst(this.ctx, input, t, 3100 + Math.random() * 300, 1.3, 0.22, 0.005);
-      this.#burst(this.ctx, input, t + 0.002, 1200, 1.0, 0.1, 0.004);
-      t += step;
+    const input = this.#slot(at, 0.8);
+    let t = this.ctx.currentTime + 0.02;
+    const steps = jackpot ? [880, 1100, 1320, 1760] : [880, 1100, 1320];
+    for (const f of steps) {
+      this.#partial(this.ctx, input, t, f, 0.3, 0.22);
+      this.#partial(this.ctx, input, t, f * 2.02, 0.12, 0.14);
+      t += 0.09;
     }
-    // the locking clack at the end
-    this.#burst(this.ctx, input, t, 1700, 0.9, 0.4, 0.012);
+    if (jackpot) this.#burst(this.ctx, input, t, 5200, 0.5, 0.35, 0.2);
+  }
+
+  /** The counter bell: a bright long brass DING that carries. */
+  bellDing(at) {
+    if (this.ctx.state !== 'running') return;
+    const input = this.#slot(at, 1.3);
+    const t0 = this.ctx.currentTime + 0.002;
+    this.#burst(this.ctx, input, t0, 3000, 0.8, 0.4, 0.008); // strike
+    for (const [f, a, d] of [[590, 0.22, 1.0], [1180, 0.55, 0.85],
+      [1585, 0.3, 0.5], [2360, 0.2, 0.32], [3540, 0.1, 0.18]]) {
+      this.#partial(this.ctx, input, t0, f * (1 + (Math.random() - 0.5) * 0.006), a, d);
+    }
   }
 
   /* --------------------------------------------------------- the targets */

@@ -8,6 +8,7 @@ import { buildRevolver } from './revolverMesh.js';
 import { ShootingGalleryAudio } from './ShootingGalleryAudio.js';
 import {
   galleryBackdropTexture, waveRailTexture, targetTexture, bulletHoleTexture,
+  prizeWheelTexture, lollipopTexture, pipTexture, bangTexture,
 } from './galleryTextures.js';
 
 /**
@@ -24,13 +25,23 @@ import {
  *
  * Two tethered toy SIX-SHOOTERS rest on the counter. Grip to pick one up
  * (the glove closes into a real pistol grip, trigger finger riding the
- * analog trigger), squeeze the trigger to fire. Six shots, then the hammer
- * clicks dry and the cylinder whirls itself a reload — point the barrel at
- * the roof to speed it up, like a showman. Shots are hitscan with a
- * muzzle flash and a cork-gun POP; hits ring the target's own tin TING and
- * slap the plate down; misses dent the painted backdrop. Letting go (or
- * wandering off with one) lets the counter tether reel the gun back to its
- * cradle.
+ * analog trigger), squeeze the trigger to fire. The hopper never runs
+ * dry — no reloading, the cylinder just indexes a fresh chamber with
+ * every shot. Shots are hitscan with a muzzle flash and a cork-gun POP;
+ * hits ring the target's own tin TING and slap the plate down; misses
+ * dent the painted backdrop. Letting go (or wandering off with one) lets
+ * the counter tether reel the gun back to its cradle.
+ *
+ * Around the conveyors the cabinet is crowded with SIDESHOW targets, the
+ * way the real travelling galleries are:
+ *   - a carnival PRIZE WHEEL on the left cabinet — shoot it and it spins
+ *     against a clacking flapper, paying out whatever wedge it lands on
+ *     (the gold 200 wedge gets a monkey ovation);
+ *   - four small gold-rimmed precision PIPS (barely any aim assist) worth
+ *     a fat payout, two high on the mural and two hiding behind the ducks;
+ *   - a brass BELL over the monkey's big top that rings and swings;
+ *   - two spiral LOLLIPOPS flanking the tent that whirl when clipped;
+ *   - and the painted SUN itself hides a once-a-round bonus.
  *
  * Round: first shot starts the 40s clock. Downed targets pop back up when
  * their conveyor carries them behind a cabinet, so there's always
@@ -50,9 +61,15 @@ const SPINNER_POINTS = 50;
 const GOLD_MULT = 3;
 const CLAP_THRESHOLDS = [100, 250, 450, 700];
 
-const GUN_AMMO = 6;
-const RELOAD_TIME = 0.65;         // cylinder-whirl duration
-const AUTO_RELOAD_DELAY = 1.0;    // dawdle after running dry before self-reload
+// sideshow payouts
+const PIP_POINTS = 40;
+const BELL_POINTS = 75;
+const LOLLIPOP_POINTS = 20;
+const SUN_BONUS = 100;
+const WHEEL_WEDGES = [20, 50, 20, 75, 20, 100, 20, 50, 20, 75, 20, 200];
+// the painted sun in the mural (booth-local; from galleryBackdropTexture)
+const SUN_AT = { x: -1.153, y: 2.329, r: 0.14 };
+
 const RETURN_TIME = 0.55;         // tether reeling a dropped gun home
 const FLIP_TIME = 0.22, RISE_TIME = 0.3;
 const HOLE_LIFE = 10;
@@ -104,15 +121,21 @@ export class ShootingGalleryGame extends MiniGame {
     this._now = 0;
     this.targets = [];
     this.spinners = [];
+    this.pips = [];
+    this.lollipops = [];
     this.guns = [];
     this._riseQueue = [];
     this._attractAt = 20;
+    this._sunBonusGiven = false;
+    this._statusFlashUntil = 0;
 
     this.#buildStage();
     this.#buildTargets();
     this.#buildSpinners();
     this.#buildMonkey();
     this.#buildCabinets();
+    this.#buildWheel();
+    this.#buildSideshow();
     this.#buildGuns();
     this.#buildFx();
 
@@ -161,6 +184,18 @@ export class ShootingGalleryGame extends MiniGame {
       );
       rail.position.set(0, y, z);
       g.add(rail);
+    }
+
+    // comic BANG! starburst boards on the side walls, like the real stall
+    const bangTex = bangTexture();
+    for (const side of [-1, 1]) {
+      const panel = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.85, 0.85),
+        new THREE.MeshLambertMaterial({ map: bangTex }),
+      );
+      panel.position.set(side * (BOOTH_W / 2 - 0.07), 1.75, 0.35);
+      panel.rotation.y = -side * Math.PI / 2;
+      g.add(panel);
     }
   }
 
@@ -373,28 +408,217 @@ export class ShootingGalleryGame extends MiniGame {
       awn.position.set(x, 2.52, -0.22);
       awn.rotation.x = -0.55;
       g.add(awn);
-      // three cubbies with plush prizes
-      for (let i = 0; i < 3; i++) {
+      // cubbies of carnival clutter: bottles below, plush in the middle,
+      // a candy jar up top. The left cabinet keeps just the bottle row —
+      // the prize wheel hangs where its upper cubbies would be.
+      const cubbies = side < 0 ? 1 : 3;
+      for (let i = 0; i < cubbies; i++) {
         const cy = 1.25 + i * 0.44;
         const cubby = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.36, 0.05), cubbyMat);
         cubby.position.set(x, cy, -0.29);
         g.add(cubby);
-        const color = CARNIVAL_PALETTE[(i * 2 + (side > 0 ? 3 : 0)) % CARNIVAL_PALETTE.length];
-        const m = new THREE.MeshLambertMaterial({ color });
-        const plush = new THREE.Group();
-        const body = new THREE.Mesh(plushGeoBody, m);
-        body.scale.y = 1.12;
-        const head = new THREE.Mesh(plushGeoHead, m);
-        head.position.y = 0.105;
-        const eL = new THREE.Mesh(earGeo, m);
-        eL.position.set(-0.032, 0.16, 0);
-        const eR = new THREE.Mesh(earGeo, m);
-        eR.position.set(0.032, 0.16, 0);
-        plush.add(body, head, eL, eR);
-        plush.position.set(x, cy - 0.09, -0.24);
-        plush.rotation.y = (Math.random() - 0.5) * 0.6;
-        g.add(plush);
+        if (i === 0) {
+          // a row of painted glass bottles
+          for (let b = 0; b < 3; b++) {
+            const glass = new THREE.MeshLambertMaterial({
+              color: [0x2e7d4f, 0xa4551e, 0x27618f][(b + (side > 0 ? 1 : 0)) % 3],
+            });
+            const bottle = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.03, 0.12, 10), glass);
+            const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.02, 0.055, 8), glass);
+            neck.position.y = 0.085;
+            const cork = new THREE.Mesh(
+              new THREE.CylinderGeometry(0.012, 0.012, 0.014, 8),
+              new THREE.MeshLambertMaterial({ color: 0xc9a26b }));
+            cork.position.y = 0.117;
+            bottle.add(body, neck, cork);
+            bottle.position.set(x + (b - 1) * 0.15, cy - 0.11, -0.25);
+            g.add(bottle);
+          }
+        } else if (i === 1) {
+          const color = CARNIVAL_PALETTE[(i * 2 + (side > 0 ? 3 : 0)) % CARNIVAL_PALETTE.length];
+          const m = new THREE.MeshLambertMaterial({ color });
+          const plush = new THREE.Group();
+          const body = new THREE.Mesh(plushGeoBody, m);
+          body.scale.y = 1.12;
+          const head = new THREE.Mesh(plushGeoHead, m);
+          head.position.y = 0.105;
+          const eL = new THREE.Mesh(earGeo, m);
+          eL.position.set(-0.032, 0.16, 0);
+          const eR = new THREE.Mesh(earGeo, m);
+          eR.position.set(0.032, 0.16, 0);
+          plush.add(body, head, eL, eR);
+          plush.position.set(x, cy - 0.09, -0.24);
+          plush.rotation.y = (Math.random() - 0.5) * 0.6;
+          g.add(plush);
+        } else {
+          // striped candy jar with a brass lid
+          const jar = new THREE.Group();
+          const body = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.055, 0.06, 0.16, 12),
+            new THREE.MeshLambertMaterial({ map: barberPoleTexture('#e02249', '#fff6ec') }));
+          const lid = new THREE.Mesh(
+            new THREE.SphereGeometry(0.05, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+            shiny({ color: 0xc9a02e, metalness: 1, roughness: 0.4 }));
+          lid.position.y = 0.08;
+          jar.add(body, lid);
+          jar.position.set(x, cy - 0.09, -0.25);
+          g.add(jar);
+        }
       }
+    }
+  }
+
+  /** the shootable carnival prize wheel on the left cabinet */
+  #buildWheel() {
+    const g = this.booth.group;
+    const root = new THREE.Group();
+    root.position.set(-2.32, 1.92, -0.28);
+    g.add(root);
+
+    // wooden backboard with a brass rim
+    const back = new THREE.Mesh(
+      new THREE.CircleGeometry(0.42, 28),
+      new THREE.MeshLambertMaterial({ map: woodTexture('#4a1f2a') }),
+    );
+    root.add(back);
+    const rim = new THREE.Mesh(
+      new THREE.TorusGeometry(0.415, 0.014, 8, 36),
+      shiny({ color: 0xc9a02e, metalness: 1, roughness: 0.4 }),
+    );
+    rim.position.z = 0.01;
+    root.add(rim);
+
+    // the wheel itself: painted face + a ring of pegs for the flapper
+    const wheel = new THREE.Group();
+    wheel.position.z = 0.035;
+    root.add(wheel);
+    const face = new THREE.Mesh(
+      new THREE.CircleGeometry(0.355, 48),
+      new THREE.MeshLambertMaterial({ map: prizeWheelTexture(WHEEL_WEDGES) }),
+    );
+    wheel.add(face);
+    const pegGeo = new THREE.CylinderGeometry(0.008, 0.008, 0.045, 8).rotateX(Math.PI / 2);
+    const pegMat = shiny({ color: 0xd4af37, metalness: 1, roughness: 0.35 });
+    const step = (Math.PI * 2) / WHEEL_WEDGES.length;
+    for (let i = 0; i < WHEEL_WEDGES.length; i++) {
+      const peg = new THREE.Mesh(pegGeo, pegMat);
+      peg.position.set(Math.cos(i * step) * 0.325, Math.sin(i * step) * 0.325, 0.012);
+      wheel.add(peg);
+    }
+    const hub = new THREE.Mesh(
+      new THREE.SphereGeometry(0.035, 10, 8),
+      shiny({ color: 0xd4af37, metalness: 1, roughness: 0.3 }),
+    );
+    hub.position.z = 0.045;
+    wheel.add(hub);
+
+    // the flapper: a red leather tongue pinned at the top, tip riding the pegs
+    const flapShape = new THREE.Shape();
+    flapShape.moveTo(-0.025, 0);
+    flapShape.lineTo(0.025, 0);
+    flapShape.lineTo(0, -0.085);
+    flapShape.closePath();
+    const flapper = new THREE.Mesh(
+      new THREE.ShapeGeometry(flapShape),
+      new THREE.MeshLambertMaterial({ color: 0xe02249, side: THREE.DoubleSide }),
+    );
+    flapper.position.set(0, 0.415, 0.075);
+    root.add(flapper);
+    const pin = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.012, 0.012, 0.05, 8).rotateX(Math.PI / 2),
+      pegMat,
+    );
+    pin.position.set(0, 0.415, 0.06);
+    root.add(pin);
+
+    this.wheel = {
+      root, disc: wheel, flapper,
+      vel: 0, spinning: false, flap: 0, lastNotch: 0,
+      // booth-local hit sphere over the face
+      c: new THREE.Vector3(-2.32, 1.92, -0.245), r: 0.38,
+    };
+  }
+
+  /** pips, bell and lollipops — the little payout targets everywhere */
+  #buildSideshow() {
+    const g = this.booth.group;
+
+    // four small precision pips: two high on the mural, two on the middle
+    // step's riser where the duck row keeps wandering across the shot
+    const pipTex = pipTexture();
+    const spots = [
+      [-0.7, 2.44, BACK_Z + 0.03],
+      [0.7, 2.44, BACK_Z + 0.03],
+      [-1.6, 1.16, -0.785],
+      [1.6, 1.16, -0.785],
+    ];
+    for (let i = 0; i < spots.length; i++) {
+      const [x, y, z] = spots[i];
+      const plate = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.12, 0.12),
+        new THREE.MeshLambertMaterial({
+          map: pipTex, alphaTest: 0.5, side: THREE.DoubleSide,
+          emissive: 0xffb300, emissiveIntensity: 0,
+        }),
+      );
+      plate.position.set(x, y, z);
+      g.add(plate);
+      this.pips.push({ plate, x, y, z, spin: 0, glow: 0, cooldownUntil: 0, seed: 200 + i });
+    }
+
+    // the brass bell, dangling on a wire just above the monkey's big top —
+    // in front of the prize shelf so it reads from the counter
+    const bell = new THREE.Group();
+    bell.position.set(0, 2.74, -1.28);
+    g.add(bell);
+    const wire = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.004, 0.004, 0.62, 6),
+      new THREE.MeshLambertMaterial({ color: 0x2a2a35 }),
+    );
+    wire.position.y = 0.32;
+    bell.add(wire);
+    const swing = new THREE.Group(); // pivot at the hanger
+    bell.add(swing);
+    const brass = shiny({ color: 0xd4af37, metalness: 1, roughness: 0.28, envIntensity: 1.2 });
+    const dome = new THREE.Mesh(
+      new THREE.SphereGeometry(0.075, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.62), brass);
+    dome.position.y = -0.05;
+    const lip = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.068, 0.076, 0.028, 14), brass);
+    lip.position.y = -0.102;
+    const clapper = new THREE.Mesh(
+      new THREE.SphereGeometry(0.016, 8, 6),
+      new THREE.MeshLambertMaterial({ color: 0x2a2a35 }));
+    clapper.position.y = -0.115;
+    const hanger = new THREE.Mesh(
+      new THREE.TorusGeometry(0.016, 0.006, 6, 10), brass);
+    swing.add(dome, lip, clapper, hanger);
+    this.bell = {
+      swing, rot: 0, rotV: 0, cooldownUntil: 0,
+      c: new THREE.Vector3(0, 2.67, -1.28), r: 0.09,
+    };
+
+    // spiral lollipops flanking the monkey's tent
+    const stickMat = new THREE.MeshLambertMaterial({ color: 0xf6ead7 });
+    const flavours = ['#e02249', '#2f6fff'];
+    for (let i = 0; i < 2; i++) {
+      const x = i === 0 ? -0.62 : 0.62;
+      const head = new THREE.Mesh(
+        new THREE.CircleGeometry(0.11, 24),
+        new THREE.MeshLambertMaterial({
+          map: lollipopTexture(flavours[i]), side: THREE.DoubleSide,
+        }),
+      );
+      head.position.set(x, 1.78, -1.44);
+      const stick = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.011, 0.011, 0.34, 8), stickMat);
+      stick.position.set(x, 1.61, -1.445);
+      g.add(head, stick);
+      this.lollipops.push({
+        head, x, y: 1.78, z: -1.44,
+        vel: 0, cooldownUntil: 0, seed: 300 + i,
+      });
     }
   }
 
@@ -430,8 +654,8 @@ export class ShootingGalleryGame extends MiniGame {
       const gun = {
         parts, mesh: parts.group,
         restPosLocal, restQuatLocal,
-        ammo: GUN_AMMO, state: 'rest',
-        reloadT: 0, reloadAt: 0, recoil: 0, drumSpin: 0,
+        state: 'rest',
+        recoil: 0, drumTurn: 0,
         returnT: 0, returnFromP: new THREE.Vector3(), returnFromQ: new THREE.Quaternion(),
         lastShotAt: 0,
         grab: null, flash: null, tether: null,
@@ -521,10 +745,9 @@ export class ShootingGalleryGame extends MiniGame {
 
   #rackGun(gun) {
     gun.state = 'rest';
-    gun.ammo = GUN_AMMO;
-    gun.reloadT = 0;
-    gun.reloadAt = 0;
     gun.recoil = 0;
+    gun.drumTurn = 0;
+    gun.parts.drum.rotation.z = 0;
     gun.grab.enabled = true;
     gun.mesh.position.copy(this.booth.group.localToWorld(gun.restPosLocal.clone()));
     gun.mesh.quaternion.copy(this._boothQuatInv).invert().multiply(gun.restQuatLocal);
@@ -541,19 +764,13 @@ export class ShootingGalleryGame extends MiniGame {
   }
 
   #fireGun(gun, hand) {
-    if (gun.state !== 'held' || gun.reloadT > 0) return;
+    if (gun.state !== 'held') return;
     if (this._now - gun.lastShotAt < 0.11) return;
     gun.lastShotAt = this._now;
 
     const muzzleWorld = gun.parts.muzzle.getWorldPosition(_v1);
-    if (gun.ammo <= 0) {
-      this.sfx.dryFire(muzzleWorld);
-      hand?.pulse(0.15, 15);
-      return;
-    }
-    gun.ammo--;
     gun.recoil = 1;
-    if (gun.ammo === 0) gun.reloadAt = this._now + AUTO_RELOAD_DELAY;
+    gun.drumTurn += Math.PI / 3; // the next chamber clicks round — never dry
     this.sfx.gunshot(muzzleWorld);
     hand?.pulse(0.9, 45);
     this.tryStart(); // the first live shot starts the round
@@ -605,6 +822,17 @@ export class ShootingGalleryGame extends MiniGame {
     for (const sp of this.spinners) {
       sphere(sp.x, sp.y, sp.z, 0.19 + assist, { kind: 'spinner', sp });
     }
+    // the sideshow: pips are precision shots — barely any assist
+    for (const pip of this.pips) {
+      sphere(pip.x, pip.y, pip.z, 0.055 + assist * 0.4, { kind: 'pip', pip });
+    }
+    for (const lp of this.lollipops) {
+      sphere(lp.x, lp.y, lp.z, 0.11 + assist * 0.5, { kind: 'lollipop', lp });
+    }
+    const bl = this.bell;
+    sphere(bl.c.x, bl.c.y, bl.c.z, bl.r + assist * 0.5, { kind: 'bell' });
+    const wh = this.wheel;
+    sphere(wh.c.x, wh.c.y, wh.c.z, wh.r + assist * 0.5, { kind: 'wheel' });
     const mk = this.monkey;
     sphere(mk.headC.x, mk.headC.y, mk.headC.z, mk.headR, { kind: 'monkey' });
     sphere(mk.bodyC.x, mk.bodyC.y, mk.bodyC.z, mk.bodyR, { kind: 'monkey' });
@@ -614,6 +842,10 @@ export class ShootingGalleryGame extends MiniGame {
       const at = this.booth.group.localToWorld(_v1.clone());
       if (bestHit.kind === 'target') this.#hitTarget(bestHit.tg, at);
       else if (bestHit.kind === 'spinner') this.#hitSpinner(bestHit.sp, at);
+      else if (bestHit.kind === 'pip') this.#hitPip(bestHit.pip, at);
+      else if (bestHit.kind === 'lollipop') this.#hitLollipop(bestHit.lp, at);
+      else if (bestHit.kind === 'bell') this.#hitBell(at);
+      else if (bestHit.kind === 'wheel') this.#hitWheel(at);
       else this.#hitMonkey(at);
       return;
     }
@@ -624,6 +856,11 @@ export class ShootingGalleryGame extends MiniGame {
       if (t > 0 && t < 12) {
         const hx = o.x + d.x * t, hy = o.y + d.y * t;
         const at = this.booth.group.localToWorld(_v1.set(hx, hy, BACK_Z + 0.02));
+        // easter egg: plugging the painted sun pays a once-a-round bonus
+        if (Math.hypot(hx - SUN_AT.x, hy - SUN_AT.y) < SUN_AT.r) {
+          this.#hitSun(at);
+          return;
+        }
         if (Math.abs(hx) < 2.58 && hy > 1.3 && hy < 2.54) {
           this.#addHole(hx, hy);
           this.sfx.boardThunk(at);
@@ -668,6 +905,85 @@ export class ShootingGalleryGame extends MiniGame {
     this.#puff(at, 0xffe9a0, 0.04, 0.15);
   }
 
+  /** a precision pip: small target, fat payout, a proud little light-up */
+  #hitPip(pip, at) {
+    pip.spin = 14;
+    pip.glow = 1;
+    this.sfx.targetTing(at, pip.seed, 1);
+    this.#puff(at, 0xffe9a0, 0.05, 0.2);
+    if (this._now >= pip.cooldownUntil) {
+      pip.cooldownUntil = this._now + 1.0;
+      const prev = this.score;
+      if (this.addScore(PIP_POINTS, at)) this.#checkThresholds(prev);
+    }
+  }
+
+  /** clip a lollipop and the swirl whirls like a pinwheel */
+  #hitLollipop(lp, at) {
+    lp.vel += 11 + Math.random() * 4;
+    this.sfx.targetTing(at, lp.seed, 0.7);
+    this.#puff(at, 0xffd7e2, 0.05, 0.18);
+    if (this._now >= lp.cooldownUntil) {
+      lp.cooldownUntil = this._now + 0.9;
+      const prev = this.score;
+      if (this.addScore(LOLLIPOP_POINTS, at)) this.#checkThresholds(prev);
+    }
+  }
+
+  /** ring the brass bell over the big top */
+  #hitBell(at) {
+    const bl = this.bell;
+    bl.rotV = THREE.MathUtils.clamp(bl.rotV + 5, -8, 8);
+    this.sfx.bellDing(at);
+    this.#puff(at, 0xffe9a0, 0.06, 0.22);
+    if (this._now >= bl.cooldownUntil) {
+      bl.cooldownUntil = this._now + 0.8;
+      const prev = this.score;
+      if (this.addScore(BELL_POINTS, at)) {
+        this.#statusFlash('DING! +' + BELL_POINTS);
+        this.#checkThresholds(prev);
+      }
+    }
+  }
+
+  /** send the prize wheel spinning — it pays whatever it lands on */
+  #hitWheel(at) {
+    const wh = this.wheel;
+    wh.vel = Math.min(16, wh.vel + 8 + Math.random() * 4);
+    wh.spinning = true;
+    this.sfx.boardThunk(at);
+    this.sfx.wheelTick(at, 1);
+    this.#puff(at, 0xffe9a0, 0.06, 0.2);
+  }
+
+  /** the painted sun: a secret worth shooting exactly once a round */
+  #hitSun(at) {
+    this.sfx.targetTing(at, 777, 1);
+    for (let i = 0; i < 4; i++) {
+      _v2.copy(at);
+      _v2.x += (Math.random() - 0.5) * 0.2;
+      _v2.y += (Math.random() - 0.5) * 0.2;
+      this.#puff(_v2, 0xffd23f, 0.07, 0.3);
+    }
+    if (!this._sunBonusGiven && this.addScore(SUN_BONUS, at)) {
+      this._sunBonusGiven = true;
+      this.#statusFlash('SUNSHINE BONUS +' + SUN_BONUS + '!');
+      this.#celebrate(3, false);
+    }
+  }
+
+  /** flash a payout message on the scoreboard, then fall back to the state line */
+  #statusFlash(msg) {
+    this.booth.scoreboard.setStatus(msg);
+    this._statusFlashUntil = this._now + 2.2;
+  }
+
+  #baseStatus() {
+    return this.state === 'running' ? 'KNOCK  EM  DOWN!'
+      : this.state === 'over' ? 'TIME UP! PRESS RESET'
+        : this.state === 'resetting' ? 'RESETTING…' : this.readyStatus;
+  }
+
   #checkThresholds(prevScore) {
     for (let i = 0; i < CLAP_THRESHOLDS.length; i++) {
       const th = CLAP_THRESHOLDS[i];
@@ -695,10 +1011,13 @@ export class ShootingGalleryGame extends MiniGame {
   /* -------------------------------------------------------- game flow ---- */
 
   onRoundStart() {
+    this._sunBonusGiven = false;
+    this._statusFlashUntil = 0;
     this.booth.scoreboard.setStatus('KNOCK  EM  DOWN!');
   }
 
   onRoundEnd() {
+    this._statusFlashUntil = 0;
     this.booth.scoreboard.setStatus('TIME UP! PRESS RESET');
     // the monkey applauds the effort — generously for a hot round
     this.#celebrate(this.score >= 250 ? 6 : this.score > 0 ? 3 : 1, this.score >= 250);
@@ -707,10 +1026,13 @@ export class ShootingGalleryGame extends MiniGame {
   /** RESET: re-rack the guns, then the plate-rise show */
   onResetRound() {
     this.booth.scoreboard.setStatus('RESETTING…');
+    this._statusFlashUntil = 0;
     for (const gun of this.guns) {
-      if (gun.state === 'rest') this.#rackGun(gun);   // fresh ammo in the cradle
-      else gun.ammo = GUN_AMMO;                       // held guns quietly refilled
+      if (gun.state === 'rest') this.#rackGun(gun);   // square up cradled guns
     }
+    this._sunBonusGiven = false;
+    this.wheel.vel = 0;
+    this.wheel.spinning = false;
     this.monkey.clapsLeft = 0;
     this.monkey.angryT = 0;
     const down = this.targets.filter(tg => !tg.up);
@@ -726,15 +1048,107 @@ export class ShootingGalleryGame extends MiniGame {
     this._now = t;
     this.#updateTargets(dt);
     this.#updateSpinners(dt);
+    this.#updateWheel(dt);
+    this.#updateSideshow(dt);
     this.#updateMonkey(dt, t);
     this.#updateGuns(dt);
     this.#updateFx(dt);
     this.#updateRiseQueue(t);
 
+    // payout flashes fall back to the state line after a couple of seconds
+    if (this._statusFlashUntil && t > this._statusFlashUntil) {
+      this._statusFlashUntil = 0;
+      this.booth.scoreboard.setStatus(this.#baseStatus());
+    }
+
     // idle showmanship: an occasional slow clap invites passers-by
     if (this.state === 'ready' && t > this._attractAt) {
       this._attractAt = t + 22 + Math.random() * 10;
       this.#celebrate(2, false);
+    }
+  }
+
+  /** wheel physics: spin, clack past the flapper, settle, PAY OUT */
+  #updateWheel(dt) {
+    const wh = this.wheel;
+    // flapper springs back after each peg kick
+    if (wh.flap > 0) {
+      wh.flap = Math.max(0, wh.flap - dt * 9);
+      wh.flapper.rotation.z = -0.42 * wh.flap;
+    }
+    if (!wh.spinning) return;
+
+    wh.disc.rotation.z += wh.vel * dt;
+    wh.vel -= (0.35 + wh.vel * 0.42) * dt;
+
+    const step = (Math.PI * 2) / WHEEL_WEDGES.length;
+    const notch = Math.floor(wh.disc.rotation.z / step);
+    if (notch !== wh.lastNotch) {
+      wh.lastNotch = notch;
+      wh.flap = 1;
+      this.sfx.wheelTick(
+        this.booth.group.localToWorld(_v2.copy(wh.c)), Math.min(1.5, wh.vel / 8));
+    }
+
+    if (wh.vel <= 0.18) {
+      wh.vel = 0;
+      wh.spinning = false;
+      // which wedge sits under the top pointer (see prizeWheelTexture)
+      const rot = wh.disc.rotation.z;
+      const idx = Math.floor(
+        THREE.MathUtils.euclideanModulo(rot - Math.PI / 2, Math.PI * 2) / step);
+      const value = WHEEL_WEDGES[idx];
+      const at = this.booth.group.localToWorld(_v2.copy(wh.c));
+      const jackpot = value >= 200;
+      this.sfx.wheelWin(at, jackpot);
+      for (let i = 0; i < (jackpot ? 6 : 3); i++) {
+        _v1.copy(at);
+        _v1.x += (Math.random() - 0.5) * 0.5;
+        _v1.y += (Math.random() - 0.5) * 0.5;
+        this.#puff(_v1, jackpot ? 0xffd23f : 0xffe9a0, 0.07, 0.3);
+      }
+      const prev = this.score;
+      if (this.addScore(value, at)) {
+        this.#statusFlash(jackpot ? 'WHEEL JACKPOT +' + value + '!' : 'WHEEL PAYS +' + value);
+        if (value >= 100) this.#celebrate(jackpot ? 5 : 3, jackpot);
+        this.#checkThresholds(prev);
+      }
+    }
+  }
+
+  /** pips light up and twirl; the bell swings itself quiet; lollipops whirl */
+  #updateSideshow(dt) {
+    for (const pip of this.pips) {
+      if (pip.spin > 0) {
+        pip.spin = Math.max(0, pip.spin - dt * 9);
+        pip.plate.rotation.z += pip.spin * dt * 4;
+      } else if (pip.plate.rotation.z !== 0) {
+        // ease back onto the nearest upright detent
+        const r = THREE.MathUtils.euclideanModulo(
+          pip.plate.rotation.z + Math.PI, Math.PI * 2) - Math.PI;
+        pip.plate.rotation.z = Math.abs(r) < 0.02 ? 0 : r - r * Math.min(1, dt * 6);
+      }
+      if (pip.glow > 0) {
+        pip.glow = Math.max(0, pip.glow - dt * 1.6);
+        pip.plate.material.emissiveIntensity = 0.5 * pip.glow;
+      }
+    }
+
+    const bl = this.bell;
+    if (bl.rotV !== 0 || bl.rot !== 0) {
+      // pendulum spring: swings hard, rings down to rest
+      bl.rotV += (-46 * bl.rot - 1.9 * bl.rotV) * dt;
+      bl.rot += bl.rotV * dt;
+      if (Math.abs(bl.rot) < 0.004 && Math.abs(bl.rotV) < 0.02) {
+        bl.rot = 0; bl.rotV = 0;
+      }
+      bl.swing.rotation.z = bl.rot;
+    }
+
+    for (const lp of this.lollipops) {
+      if (lp.vel <= 0) continue;
+      lp.head.rotation.z += lp.vel * dt;
+      lp.vel = Math.max(0, lp.vel - (0.4 + lp.vel * 0.5) * dt);
     }
   }
 
@@ -845,17 +1259,6 @@ export class ShootingGalleryGame extends MiniGame {
       }
 
       if (gun.state === 'held') {
-        // empty cylinder: reload after a beat — or right away if the
-        // player points the barrel at the roof like a showman
-        if (gun.ammo === 0 && gun.reloadT <= 0) {
-          _v1.set(0, 0, -1).applyQuaternion(gun.mesh.getWorldQuaternion(_q1));
-          const tiltUp = _v1.y > 0.75;
-          if (tiltUp || this._now >= gun.reloadAt) {
-            gun.reloadT = RELOAD_TIME;
-            this.sfx.reloadSpin(gun.mesh.getWorldPosition(_v2), RELOAD_TIME);
-            gun.grab.heldBy?.pulse(0.3, 30);
-          }
-        }
         // a held gun dragged off the pitch gets reeled home by its tether
         _v1.copy(gun.mesh.position).applyMatrix4(this._boothInv);
         if (_v1.z > 3.4 || Math.abs(_v1.x) > 3.4) {
@@ -865,15 +1268,10 @@ export class ShootingGalleryGame extends MiniGame {
         }
       }
 
-      // the reload whirl
-      if (gun.reloadT > 0) {
-        gun.reloadT -= dt;
-        gun.parts.drum.rotation.z += 34 * dt;
-        if (gun.reloadT <= 0) {
-          gun.reloadT = 0;
-          gun.ammo = GUN_AMMO;
-          gun.parts.drum.rotation.z = 0;
-        }
+      // the cylinder eases round to its next chamber after each shot
+      const drumLag = gun.drumTurn - gun.parts.drum.rotation.z;
+      if (drumLag > 1e-4) {
+        gun.parts.drum.rotation.z += drumLag * Math.min(1, dt * 22);
       }
 
       // tether reeling a dropped gun back to its cradle

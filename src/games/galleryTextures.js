@@ -174,6 +174,56 @@ export function galleryBackdropTexture() {
     [0.9, 0.12, 17], [0.22, 0.2, 13], [0.72, 0.3, 12]]) {
     star(ctx, W * fx, H * fy, r, '#ffd23f');
   }
+
+  // drifting party balloons on strings
+  const balloon = (x, y, s, color) => {
+    ctx.fillStyle = color;
+    ctx.strokeStyle = 'rgba(60,30,0,0.5)';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.ellipse(x, y, 20 * s, 26 * s, 0, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.beginPath();
+    ctx.ellipse(x - 7 * s, y - 9 * s, 6 * s, 9 * s, -0.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(60,30,0,0.6)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(x, y + 26 * s);
+    ctx.quadraticCurveTo(x + 10 * s, y + 48 * s, x - 4 * s, y + 70 * s);
+    ctx.stroke();
+  };
+  balloon(W * 0.47, H * 0.14, 1.0, '#e02249');
+  balloon(W * 0.51, H * 0.22, 0.8, '#2f6fff');
+  balloon(W * 0.84, H * 0.4, 0.9, '#ffd23f');
+  balloon(W * 0.17, H * 0.44, 0.75, '#43a047');
+
+  // painted butterflies fluttering over the hills
+  const butterfly = (x, y, s, color) => {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate((Math.random() - 0.5) * 0.6);
+    ctx.fillStyle = color;
+    ctx.strokeStyle = 'rgba(60,30,0,0.55)';
+    ctx.lineWidth = 3;
+    for (const sx of [-1, 1]) {
+      ctx.beginPath();
+      ctx.ellipse(sx * 11 * s, -6 * s, 12 * s, 9 * s, sx * 0.5, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(sx * 9 * s, 7 * s, 9 * s, 7 * s, sx * -0.4, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+    }
+    ctx.fillStyle = '#3a2620';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 3 * s, 12 * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  };
+  butterfly(W * 0.3, H * 0.5, 1.0, '#ff9800');
+  butterfly(W * 0.57, H * 0.45, 0.85, '#e05a9e');
+  butterfly(W * 0.76, H * 0.52, 0.9, '#3aa0ff');
   // a couple of painted bullseyes on the hills (they're just decoration,
   // but they make the whole wall read TARGET RANGE at a glance)
   bullseye(ctx, W * 0.1, H * 0.78, 40);
@@ -397,6 +447,175 @@ export function targetTexture(kind, { gold = false } = {}) {
     bullseye(ctx, 128, 128, 44);
   }
 
+  grain(ctx, S, S, 6);
+  return toTexture(c);
+}
+
+/* ---------------------------------------------------------- prize wheel ---- */
+
+/**
+ * The face of the shootable carnival prize wheel: `values.length` wedges
+ * with painted point values, a gold hub star and a riveted rim. Wedge i
+ * occupies CANVAS angles [i, i+1) * step from the +x axis — with flipY the
+ * wedge under a pointer at world angle π/2 on a disc rotated by `rot` is
+ * floor(mod(rot - π/2, 2π) / step) (see ShootingGalleryGame #updateWheel).
+ */
+export function prizeWheelTexture(values) {
+  const S = 512;
+  const [c, ctx] = makeCanvas(S, S);
+  ctx.clearRect(0, 0, S, S);
+  const cx = S / 2, cy = S / 2, R = 244;
+  const step = (Math.PI * 2) / values.length;
+  const wedgeColor = (v) => v >= 200 ? '#ffd23f'
+    : v >= 100 ? '#43a047'
+      : v >= 75 ? '#2f6fff'
+        : v >= 50 ? '#e02249' : '#f6ead7';
+
+  for (let i = 0; i < values.length; i++) {
+    ctx.fillStyle = wedgeColor(values[i]);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, R, i * step, (i + 1) * step);
+    ctx.closePath();
+    ctx.fill();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(60,30,0,0.6)';
+    ctx.stroke();
+  }
+  // painted values, upright along each wedge's spoke
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `bold 52px ${DISPLAY_FONT}`;
+  for (let i = 0; i < values.length; i++) {
+    const a = (i + 0.5) * step;
+    const dark = wedgeColor(values[i]) === '#f6ead7';
+    ctx.save();
+    ctx.translate(cx + Math.cos(a) * 168, cy + Math.sin(a) * 168);
+    ctx.rotate(a + Math.PI / 2);
+    ctx.fillStyle = 'rgba(60,30,0,0.5)';
+    ctx.fillText(String(values[i]), 2, 3);
+    ctx.fillStyle = dark ? '#c2183c' : '#fff6d8';
+    ctx.fillText(String(values[i]), 0, 0);
+    ctx.restore();
+  }
+  // gold rim with rivets
+  ctx.lineWidth = 16;
+  ctx.strokeStyle = '#d4af37';
+  ctx.beginPath(); ctx.arc(cx, cy, R - 6, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = '#8a6a14';
+  for (let i = 0; i < values.length; i++) {
+    const a = i * step;
+    ctx.beginPath();
+    ctx.arc(cx + Math.cos(a) * (R - 6), cy + Math.sin(a) * (R - 6), 6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // hub: red boss with a gold star
+  ctx.fillStyle = '#c2183c';
+  ctx.beginPath(); ctx.arc(cx, cy, 62, 0, Math.PI * 2); ctx.fill();
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = '#d4af37';
+  ctx.beginPath(); ctx.arc(cx, cy, 62, 0, Math.PI * 2); ctx.stroke();
+  star(ctx, cx, cy, 40, '#ffd23f');
+
+  grain(ctx, S, S, 5);
+  return toTexture(c);
+}
+
+/* ------------------------------------------------------------- lollipop ---- */
+
+/** Big spiral candy lollipop head, transparent corners (use alphaTest). */
+export function lollipopTexture(color = '#e02249') {
+  const S = 256;
+  const [c, ctx] = makeCanvas(S, S);
+  ctx.clearRect(0, 0, S, S);
+  const cx = S / 2, cy = S / 2;
+  // candy disc
+  ctx.fillStyle = '#fff6ec';
+  ctx.beginPath(); ctx.arc(cx, cy, 118, 0, Math.PI * 2); ctx.fill();
+  // the swirl: one fat archimedean spiral stroke
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 30;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  const TURNS = 3.2;
+  for (let t = 0; t <= 1; t += 0.01) {
+    const a = t * TURNS * Math.PI * 2;
+    const r = 4 + t * 104;
+    const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r;
+    if (t === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  // gloss + outline
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.beginPath(); ctx.ellipse(cx - 40, cy - 48, 30, 18, -0.7, 0, Math.PI * 2); ctx.fill();
+  ctx.lineWidth = 8;
+  ctx.strokeStyle = 'rgba(60,30,0,0.6)';
+  ctx.beginPath(); ctx.arc(cx, cy, 118, 0, Math.PI * 2); ctx.stroke();
+  grain(ctx, S, S, 5);
+  return toTexture(c);
+}
+
+/* ------------------------------------------------------------ pip target ---- */
+
+/** Small gold-rimmed precision bullseye — the sharpshooter's payout pip. */
+export function pipTexture() {
+  const S = 128;
+  const [c, ctx] = makeCanvas(S, S);
+  ctx.clearRect(0, 0, S, S);
+  bullseye(ctx, 64, 64, 58, ['#d4af37', '#f6ead7', '#e02249', '#f6ead7', '#e02249']);
+  // gold rim highlight
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = '#ffe9a0';
+  ctx.beginPath(); ctx.arc(64, 64, 52, Math.PI * 1.1, Math.PI * 1.7); ctx.stroke();
+  // navy compass dots so the twirl after a hit actually reads
+  ctx.fillStyle = '#1d2a63';
+  for (let i = 0; i < 4; i++) {
+    const a = i * Math.PI / 2 + Math.PI / 4;
+    ctx.beginPath();
+    ctx.arc(64 + Math.cos(a) * 44, 64 + Math.sin(a) * 44, 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  return toTexture(c);
+}
+
+/* ------------------------------------------------------------ BANG panel ---- */
+
+/** Painted comic starburst panel with chunky BANG! lettering. */
+export function bangTexture() {
+  const S = 512;
+  const [c, ctx] = makeCanvas(S, S);
+  // cream board with a red frame
+  ctx.fillStyle = '#f6ead7';
+  ctx.fillRect(0, 0, S, S);
+  ctx.lineWidth = 26;
+  ctx.strokeStyle = '#c2183c';
+  ctx.strokeRect(13, 13, S - 26, S - 26);
+  // double starburst
+  const burst = (r0, r1, color) => {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    for (let i = 0; i < 28; i++) {
+      const r = i % 2 ? r0 : r1 * (0.85 + ((i * 7919) % 13) / 40);
+      const a = (i / 28) * Math.PI * 2;
+      ctx.lineTo(256 + Math.cos(a) * r, 256 + Math.sin(a) * r);
+    }
+    ctx.closePath();
+    ctx.fill();
+  };
+  burst(120, 235, '#e02249');
+  burst(95, 185, '#ffd23f');
+  // BANG!
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `bold 118px ${DISPLAY_FONT}`;
+  ctx.save();
+  ctx.translate(256, 260);
+  ctx.rotate(-0.08);
+  ctx.fillStyle = 'rgba(60,20,0,0.6)';
+  ctx.fillText('BANG!', 5, 7);
+  ctx.fillStyle = '#1d2a63';
+  ctx.fillText('BANG!', 0, 0);
+  ctx.restore();
   grain(ctx, S, S, 6);
   return toTexture(c);
 }

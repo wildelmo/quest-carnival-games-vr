@@ -61,12 +61,18 @@ hand is near something you can grab.
   score crosses a threshold (and chatters indignantly if you shoot him).
   Two tethered toy six-shooters rest on the counter: grip to draw one
   (the glove closes into a real pistol grip, its trigger finger riding
-  your analog trigger), trigger to fire. Six shots, then the hammer
-  clicks dry and the cylinder whirls a reload — point the barrel at the
-  roof to hurry it, like a showman. Hits ring each target's own tin TING
-  and slap the plate down; misses leave fading dents in the paintwork.
-  Downed animals pop back up as the conveyor carries them behind the
-  cabinets, so the wall never runs empty.
+  your analog trigger), trigger to fire — no reloading, the cylinder just
+  clicks round a fresh chamber forever. Hits ring each target's own tin
+  TING and slap the plate down; misses leave fading dents in the
+  paintwork. Downed animals pop back up as the conveyor carries them
+  behind the cabinets, so the wall never runs empty. And the cabinet is
+  crowded with sideshow shots, like the real travelling galleries: a
+  carnival PRIZE WHEEL that spins against a clacking flapper and pays
+  whatever wedge it lands on (the gold 200 wedge earns a monkey ovation),
+  four small gold-rimmed precision pips worth a fat payout (two hide
+  behind the duck row), a brass bell over the big top that rings and
+  swings, spiral lollipops that whirl when clipped — and the painted sun
+  hides a once-a-round bonus for anyone who thinks to shoot it.
 
 One more pad stands roped off with a "coming soon" marquee: Milk Bottles.
 
@@ -103,7 +109,7 @@ instead* gives you a mouse/keyboard version of the same tent.
 | Teleport | push right stick forward, aim arc, release | — |
 | Grab ball/dart/ring/gun | grip or trigger near the object | click (nearest object ahead) |
 | Throw | swing arm + release grip | click again (throws along view) |
-| Fire six-shooter | trigger while holding it (grip release puts it down) | click again (fires along view) |
+| Fire six-shooter (endless ammo) | trigger while holding it (grip release puts it down) | click again (fires along view) |
 | Buttons / exit bell | physically poke / touch | look at it up close, press `E` |
 
 ## Project layout
