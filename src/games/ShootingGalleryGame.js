@@ -35,8 +35,9 @@ import {
  * plate's plane, see #hitscan) — grazing the air beside a duck misses.
  *
  * Every 10–20 conveyor passes, one wrapping animal comes back as the
- * WILD CLOWN: shoot him for +150 and he throws a whole routine — spins,
- * hops, confetti, slide-whistle WHOOP and a squeeze-horn HONK.
+ * WILD CLOWN. Only his red NOSE pays: plink it for +150 and he throws a
+ * whole routine — spins, hops, confetti, slide-whistle WHOOP and a
+ * squeeze-horn HONK. Hit the rest of his tin and he just wobbles.
  *
  * Around the conveyors the cabinet is crowded with SIDESHOW targets, the
  * way the real travelling galleries are:
@@ -72,6 +73,10 @@ const CLAP_THRESHOLDS = [100, 250, 450, 700];
 const SPECIAL_POINTS = 150;
 const SPECIAL_SCALE = 1.3;
 const SPECIAL_EVERY = () => 10 + Math.random() * 10; // wraps between clowns
+// only his red NOSE counts — plate-space UV of the painted bullseye
+// (canvas 128,150 r24 of 256; v measured from the plate's bottom edge)
+const CLOWN_NOSE_V = 1 - 150 / 256;
+const CLOWN_NOSE_R = 24 / 256;
 
 // sideshow payouts
 const PIP_POINTS = 40;
@@ -84,7 +89,9 @@ const SUN_AT = { x: -1.153, y: 2.329, r: 0.14 };
 
 const RETURN_TIME = 0.55;         // tether reeling a dropped gun home
 const FLIP_TIME = 0.22, RISE_TIME = 0.3;
-const HOLE_LIFE = 10;
+// dents linger just long enough to read your grouping, then melt away —
+// short and CONSISTENT beats long-lived slots that vanish on reuse
+const HOLE_LIFE = 2;
 
 /**
  * Hand-local hold for the six-shooter. XR numbers were DIALLED IN ON THE
@@ -122,7 +129,13 @@ export class ShootingGalleryGame extends MiniGame {
       colorA: '#c2183c', colorB: '#ffd23f',
       signColors: { bg: '#1d2a63', rainbow: true },
       shelfY: 2.72, // prizes strung along the very top, clear of the backdrop
-      scoreboardY: 3.48, // above the plush shelf, which otherwise hides it
+      // the deep stall's back sits where the tent roof has come down to
+      // ~3.4m, which decapitated the default board — so it rides lower and
+      // forward, on posts above the monkey's big top, clear of the shelf
+      scoreboardPos: new THREE.Vector3(0, 3.06, -0.92),
+      scoreboardPostBase: 1.24, // standing on the middle stage tier
+      scoreboardScale: 1.2,
+      scoreboardTilt: -0.32,
       resetButtonLocal: new THREE.Vector3(1.75, 0.98, 1.48),
       onReset: () => this.requestReset(),
     });
@@ -262,7 +275,7 @@ export class ShootingGalleryGame extends MiniGame {
           carrier, plate, row,
           up: true, flipK: 1, riseK: 1, rising: false,
           gold, seed: seed++,
-          special: false, celebrate: 0, baseMat: null,
+          special: false, celebrate: 0, wobble: 0, baseMat: null,
           points: (gold ? GOLD_MULT : 1) * row.points,
         });
       }
@@ -871,7 +884,20 @@ export class ShootingGalleryGame extends MiniGame {
       const v = (o.y + d.y * t - tg.row.y) / s;
       if (u < 0 || u > 1 || v < 0 || v > 1) continue;
       if (tg.plate.scale.x < 0) u = 1 - u; // mirrored silhouettes
-      const mask = this._masks[tg.special ? 'clown' : tg.row.kind];
+      if (tg.special) {
+        // the clown only counts on his red NOSE — a marksman's shot.
+        // Elsewhere on the tin he just wobbles and mocks you.
+        const noseDist = Math.hypot((u - 0.5) * s, (v - CLOWN_NOSE_V) * s);
+        if (noseDist <= CLOWN_NOSE_R * s + assist * 0.4) {
+          bestT = t;
+          bestHit = { kind: 'target', tg };
+        } else if (maskHit(this._masks.clown, u, v, edgePx(s, this._masks.clown))) {
+          bestT = t;
+          bestHit = { kind: 'clownBody', tg };
+        }
+        continue;
+      }
+      const mask = this._masks[tg.row.kind];
       if (maskHit(mask, u, v, edgePx(s, mask))) {
         bestT = t;
         bestHit = { kind: 'target', tg };
@@ -911,6 +937,7 @@ export class ShootingGalleryGame extends MiniGame {
       _v1.copy(o).addScaledVector(d, bestT);
       const at = this.booth.group.localToWorld(_v1.clone());
       if (bestHit.kind === 'target') this.#hitTarget(bestHit.tg, at);
+      else if (bestHit.kind === 'clownBody') this.#grazeClown(bestHit.tg, at);
       else if (bestHit.kind === 'spinner') this.#hitSpinner(bestHit.sp, at);
       else if (bestHit.kind === 'pip') this.#hitPip(bestHit.pip, at);
       else if (bestHit.kind === 'lollipop') this.#hitLollipop(bestHit.lp, at);
@@ -957,11 +984,20 @@ export class ShootingGalleryGame extends MiniGame {
     if (this.addScore(tg.points, at)) this.#checkThresholds(prev);
   }
 
+  /** tin-but-not-nose: no payout, just a dull tink and a mocking wobble */
+  #grazeClown(tg, at) {
+    tg.wobble = 1;
+    this.sfx.targetTing(at, tg.seed, 0.2);
+    this.#puff(at, 0xcfc8bd, 0.04, 0.12);
+  }
+
   /** the WILD CLOWN goes off: whoop-HONK, confetti, a spinning bow */
   #hitSpecial(tg, at) {
     tg.up = false;
     tg.flipK = 1;   // no tin flip — he does his own routine
     tg.celebrate = 1;
+    tg.wobble = 0;
+    tg.plate.rotation.y = 0;
     this.sfx.targetTing(at, tg.seed, 0.8);
     this.sfx.clownWhoop(at);
     const confetti = [0xff5d73, 0xffd23f, 0x3aa0ff, 0x8bc34a];
@@ -1268,6 +1304,13 @@ export class ShootingGalleryGame extends MiniGame {
       }
       tg.carrier.position.x = x;
 
+      // a grazed clown shivers on his hinge, laughing it off
+      if (tg.wobble > 0 && tg.celebrate === 0 && tg.up) {
+        tg.wobble = Math.max(0, tg.wobble - dt * 2.2);
+        tg.plate.rotation.y = Math.sin(this._now * 28) * 0.22 * tg.wobble;
+        if (tg.wobble === 0) tg.plate.rotation.y = 0;
+      }
+
       // the wild clown's victory lap: spins, hops, swells — then lies down
       if (tg.celebrate > 0) {
         tg.celebrate = Math.max(0, tg.celebrate - dt / 0.9);
@@ -1339,6 +1382,7 @@ export class ShootingGalleryGame extends MiniGame {
     this._specialActive = false;
     tg.special = false;
     tg.celebrate = 0;
+    tg.wobble = 0;
     tg.plate.material = tg.baseMat;
     tg.plate.rotation.y = 0;
     tg.carrier.position.y = tg.row.y;
@@ -1472,7 +1516,7 @@ export class ShootingGalleryGame extends MiniGame {
       if (h.life <= 0) continue;
       h.life -= dt;
       dirty = true;
-      const s = Math.min(1, h.life / 2); // hold, then shrink away
+      const s = Math.min(1, h.life / (HOLE_LIFE * 0.75)); // hold, then shrink away
       _m1.makeScale(s, s, s);
       _m1.setPosition(h.x, h.y, BACK_Z + 0.015);
       this.holes.setMatrixAt(i, _m1);

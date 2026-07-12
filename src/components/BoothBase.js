@@ -52,19 +52,24 @@ export class BoothBase {
 
     // scoreboard perched on posts above the back wall, centred over the
     // game and tilted down toward the throw line — like the score display
-    // on a real boardwalk cabinet. It sits above the prize shelf and the
-    // targets, so nothing in the game is ever behind it. Booths with a
-    // tall prize shelf pass scoreboardY to lift it clear of the plushies.
-    const sbY = opts.scoreboardY ?? 3.25;
+    // on a real boardwalk cabinet. HEIGHT WARNING: booths back onto the
+    // tent wall, where the conical roof has come down to ~3.4m — a board
+    // that suits the default may poke through the canvas on a deeper
+    // stall. Such booths pass scoreboardPos (+ postBase) to bring it
+    // down and forward under the roof line.
+    const sbPos = opts.scoreboardPos ?? new THREE.Vector3(0, 3.25, -this.depth / 2 + 0.06);
     this.scoreboard = new Scoreboard(opts.scoreboardTitle ?? this.name);
-    this.scoreboard.group.position.set(0, sbY, -this.depth / 2 + 0.06);
-    this.scoreboard.group.rotation.x = -0.35;
-    this.scoreboard.group.scale.setScalar(1.35);
+    this.scoreboard.group.position.copy(sbPos);
+    this.scoreboard.group.rotation.x = opts.scoreboardTilt ?? -0.35;
+    this.scoreboard.group.scale.setScalar(opts.scoreboardScale ?? 1.35);
     this.group.add(this.scoreboard.group);
     const postMat = new THREE.MeshLambertMaterial({ color: 0x2a2a35 });
+    const postBase = opts.scoreboardPostBase ?? (sbPos.y - 0.75);
+    const postTop = sbPos.y + 0.05;
     for (const sx of [-0.4, 0.4]) {
-      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.8, 8), postMat);
-      post.position.set(sx, sbY - 0.35, -this.depth / 2);
+      const post = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.02, 0.02, postTop - postBase, 8), postMat);
+      post.position.set(sx, (postTop + postBase) / 2, sbPos.z);
       this.group.add(post);
     }
 
