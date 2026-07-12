@@ -69,7 +69,8 @@ hand is near something you can grab.
   pop back up as the conveyor carries them behind the cabinets, so the
   wall never runs empty — and every 10–20 passes one comes back as the
   WILD CLOWN, worth +150 and a confetti-spinning, slide-whistle-honking
-  celebration if you can pick him off. And the cabinet is
+  celebration — but only if you plink his little red nose. The rest of
+  him just wobbles and mocks you. And the cabinet is
   crowded with sideshow shots, like the real travelling galleries: a
   carnival PRIZE WHEEL that spins against a clacking flapper and pays
   whatever wedge it lands on (the gold 200 wedge earns a monkey ovation),
