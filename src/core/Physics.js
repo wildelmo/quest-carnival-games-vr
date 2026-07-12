@@ -70,6 +70,14 @@ export class BoxCollider {
     this.quaternion = quaternion ? quaternion.clone() : new THREE.Quaternion();
     this.invQuaternion = this.quaternion.clone().invert();
     this.restitution = opts.restitution ?? 0.4;
+    /** overrides the body's tangential friction on this surface (0..1) */
+    this.friction = opts.friction ?? null;
+    /**
+     * fraction of velocity a body KEEPS when a hit disables this collider
+     * mid-contact (a knocked-down target): the body punches through the
+     * space the target vacated instead of bouncing off it
+     */
+    this.punchThrough = opts.punchThrough ?? 0.4;
     this.enabled = true;
     this.tag = opts.tag || 'wall';
     /** optional (body, impactSpeed) callback, e.g. knockdown targets */
@@ -254,19 +262,21 @@ export class Physics {
   }
 
   /** Reflect velocity around contact normal with restitution + friction. */
-  #bounce(body, normal, restitution, tag, collider = null) {
+  #bounce(body, normal, restitution, tag, friction = null) {
     const v = body.velocity;
     const vn = v.dot(normal);
     if (vn >= 0) return;
     const impact = -vn;
+    // a surface can only return as much energy as the body itself would —
+    // a dead sandbag ball stays dead even off a springy wall
+    const rest = Math.min(restitution, body.restitution);
     // normal reflection
-    v.addScaledVector(normal, -(1 + restitution) * vn);
+    v.addScaledVector(normal, -(1 + rest) * vn);
     // tangential friction
     _v3.copy(normal).multiplyScalar(v.dot(normal));
     _v2.copy(v).sub(_v3); // tangential component
-    v.addScaledVector(_v2, -body.friction * Math.min(1, impact));
+    v.addScaledVector(_v2, -(friction ?? body.friction) * Math.min(1, impact));
     if (impact > 0.7 && body.onImpact) body.onImpact(impact, tag);
-    if (collider && collider.onHit && impact > 0.4) collider.onHit(body, impact);
   }
 
   #sphereBox(body, col) {
@@ -298,10 +308,22 @@ export class Physics {
     }
     const dist = d2 > 1e-10 ? Math.sqrt(d2) : 0;
 
-    // world-space normal + positional correction
+    // world-space normal
     const normal = normalLocal.applyQuaternion(col.quaternion); // reuses _v3
+    // hit callback fires BEFORE the bounce is resolved: if the hit consumes
+    // the collider (a target knocked off its hinge disables itself), the
+    // body keeps going through the space the target vacated — momentum
+    // spent, not reflected. That's what makes a knockdown feel like
+    // punching through a doll instead of bouncing off a wall.
+    const vn = body.velocity.dot(normal);
+    if (col.onHit && vn < -0.4) col.onHit(body, -vn);
+    if (!col.enabled) {
+      body.velocity.multiplyScalar(col.punchThrough);
+      body.wake();
+      return;
+    }
     body.position.addScaledVector(normal, r - dist);
-    this.#bounce(body, normal, col.restitution, col.tag, col);
+    this.#bounce(body, normal, col.restitution, col.tag, col.friction);
     if (normal.y > 0.5) body.grounded = true;
     body.wake();
   }

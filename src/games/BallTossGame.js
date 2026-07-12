@@ -5,16 +5,21 @@ import { BoothBase } from '../components/BoothBase.js';
 import { BoxCollider, ForceZone, SphereBody } from '../core/Physics.js';
 import { CARNIVAL_PALETTE } from '../core/textures.js';
 import { shiny } from '../core/environment.js';
+import { BallTossAudio } from './BallTossAudio.js';
 
 /**
  * DOWN THE CLOWN — knock down the wall of plush clown dolls (5 wide,
  * 4 shelves high), boardwalk / Dave & Buster's style.
  *
- * A chute dispenses six foam softballs into a counter tray. Throw them at
- * the shelves of plush clowns; solid hits knock dolls backwards on their
- * hinges, glancing hits make them wobble. Balls bounce around the booth,
- * get swept to a grate at the base of the wall by the sloped floor (a
- * force zone), ride a return pipe, and pop back out into the tray.
+ * A chute dispenses six dense fabric-skinned balls into a counter tray —
+ * they throw and land like small sandbags, not bouncy rubber. Throw them
+ * at the shelves of plush clowns; a solid hit punches THROUGH the doll
+ * (it slams backwards on its hinge and the ball carries on, momentum
+ * spent), glancing hits make it wobble and drop the ball dead. Balls land
+ * with a low thunk, get swept to a grate spanning the base of the wall by
+ * the sloped floor (a force zone), ride a return pipe, and pop back out
+ * into the tray. A watchdog sweeps up any ball that comes to rest where
+ * the player can't reach it, so the six balls always come back.
  *
  * Rows score 10/20/30/40 bottom→top. Clearing the whole wall ends the
  * round early with a +150 bonus and a fanfare.
@@ -45,6 +50,9 @@ export class BallTossGame extends MiniGame {
     super(deps, 45);
     this.readyStatus = 'THROW A BALL TO START';
     const { world, audio, grabbables } = deps;
+
+    // the booth's sandbag-on-doll voice (see BallTossAudio)
+    this.sfx = new BallTossAudio(audio, world.scene);
 
     this.booth = new BoothBase(deps, {
       name: 'DOWN THE CLOWN',
@@ -97,9 +105,10 @@ export class BallTossGame extends MiniGame {
   #buildWallColliders() {
     const { physics } = this.deps.world;
     const b = this.booth;
-    physics.colliderFromMesh(b.backWall, new THREE.Vector3(b.width, 2.6, 0.08), { restitution: 0.35, tag: 'canvas' });
+    // draped canvas soaks a heavy ball up — barely any bounce back
+    physics.colliderFromMesh(b.backWall, new THREE.Vector3(b.width, 2.6, 0.08), { restitution: 0.15, friction: 0.6, tag: 'canvas' });
     for (const mesh of [b.group.children.filter(c => c.geometry?.parameters?.depth === b.depth)].flat()) {
-      physics.colliderFromMesh(mesh, new THREE.Vector3(0.08, 2.6, b.depth), { restitution: 0.35, tag: 'canvas' });
+      physics.colliderFromMesh(mesh, new THREE.Vector3(0.08, 2.6, b.depth), { restitution: 0.15, friction: 0.6, tag: 'canvas' });
     }
   }
 
@@ -181,9 +190,13 @@ export class BallTossGame extends MiniGame {
         // world-space collider wrapping the standing doll
         root.updateWorldMatrix(true, true);
         const center = root.localToWorld(new THREE.Vector3(0, 0.135, 0));
+        // a plush body over a wooden core: essentially zero bounce-back
+        // (restitution near 0, heavy tangential grab), and when a hit
+        // knocks the doll down the ball punches through the vacated space
+        // keeping ~45% of its speed (see Physics punchThrough)
         const collider = physics.addCollider(new BoxCollider(
           center, new THREE.Vector3(0.115, 0.135, 0.05), this._worldQuat,
-          { restitution: 0.25, tag: 'target' },
+          { restitution: 0.04, friction: 0.85, punchThrough: 0.45, tag: 'target' },
         ));
 
         const target = {
@@ -211,17 +224,14 @@ export class BallTossGame extends MiniGame {
 
   #onTargetHit(target, impact) {
     if (target.state !== 'up') return;
-    const audio = this.deps.audio;
     if (impact >= KNOCK_SPEED) {
       target.state = 'falling';
       target.angVel = -impact * 1.4;
-      target.collider.enabled = false;
+      target.collider.enabled = false; // Physics sees this and lets the ball punch through
       this._downCount++;
-      // recorded heavy punch carries the weight; a quiet wood clack is the
-      // doll slamming back against its shelf. Nothing synthetic.
-      audio.play('mittThud', { at: target.worldPos,
-        volume: Math.min(1, 0.6 + impact / 8), refDistance: 2.6, rolloff: 1.1 });
-      audio.play('knock', { at: target.worldPos, volume: 0.3, rate: 0.9, jitter: 0.12 });
+      // the full sandbag-on-doll THUNK: synthesized wooden-core thump +
+      // cloth whump under the recorded punch, pitched down for weight
+      this.sfx.dollThunk(target.worldPos, impact);
       if (this.state === 'running') {
         this.addScore(target.points, target.worldPos);
         if (this._downCount >= ROWS * COLS) {
@@ -230,9 +240,9 @@ export class BallTossGame extends MiniGame {
         }
       }
     } else {
-      // glancing blow: satisfying wobble but no points
+      // glancing blow: satisfying wobble but no points — the ball drops dead
       target.wobbleVel += impact * 3.5 * (Math.random() > 0.5 ? 1 : -1);
-      audio.play('mittThudSoft', { at: target.worldPos, volume: 0.5, refDistance: 2.2 });
+      this.sfx.dollTap(target.worldPos, impact);
     }
   }
 
@@ -301,27 +311,33 @@ export class BallTossGame extends MiniGame {
     const { physics } = this.deps.world;
     const g = this.booth.group;
 
-    // visible grate strip at the base of the target wall
+    // visible grate strip spanning the FULL base of the target wall —
+    // wall to wall, so there is no dead corner a ball can rest in front of
     const grate = new THREE.Mesh(
-      new THREE.BoxGeometry(2.6, 0.04, 0.34),
+      new THREE.BoxGeometry(3.85, 0.04, 0.34),
       new THREE.MeshLambertMaterial({ color: 0x1d1d26 }),
     );
     grate.position.set(0, 0.021, -1.28);
     g.add(grate);
 
-    // sweep zone: whole booth floor pushes balls toward the grate
+    // sweep zone: whole booth floor pushes balls toward the grate. Spans
+    // the full interior (side wall to side wall, all the way to the back
+    // wall) so a ball hugging a wall still gets swept.
     physics.addZone(new ForceZone(
-      this.#localToWorld(0, 0.15, 0.1),
-      new THREE.Vector3(1.9, 0.18, 1.5),
+      this.#localToWorld(0, 0.15, 0.05),
+      new THREE.Vector3(1.95, 0.18, 1.55),
       this._worldQuat,
       this.#localDir(0, 0, -2.2),
       { maxSpeed: 1.4 },
     ));
 
-    // grate zone: consume the ball, then return it through the chute
+    // grate zone: consume the ball, then return it through the chute.
+    // Full booth width and deep enough to reach the back wall — the old
+    // narrower zone left the back corners uncovered and balls piled up
+    // there for good.
     physics.addZone(new ForceZone(
-      this.#localToWorld(0, 0.09, -1.28),
-      new THREE.Vector3(1.3, 0.12, 0.18),
+      this.#localToWorld(0, 0.09, -1.3),
+      new THREE.Vector3(1.95, 0.14, 0.24),
       this._worldQuat,
       new THREE.Vector3(0, 0, 0),
       {
@@ -336,7 +352,7 @@ export class BallTossGame extends MiniGame {
     body.enabled = false;
     ball.mesh.visible = false;
     ball.grab.enabled = false;
-    this.deps.audio.play('thud', { at: ball.mesh.getWorldPosition(_v1).clone(), volume: 0.4, rate: 1.3 });
+    this.deps.audio.play('thud', { at: ball.mesh.getWorldPosition(_v1).clone(), volume: 0.4, rate: 1.05 });
     // ball travels the hidden pipe for a moment, then pops out at the tray
     this._pendingReturns.push({ ball, at: this._now + 1.6 });
   }
@@ -358,27 +374,31 @@ export class BallTossGame extends MiniGame {
       this.deps.shadows?.track(mesh, { radius: BALL_RADIUS * 1.5, strength: 0.85 });
 
       const body = new SphereBody(mesh, BALL_RADIUS, {
-        restitution: 0.62, rollFriction: 0.7, tag: 'ball',
-        gravityScale: 0.8, // light foam — flies flatter, much easier to aim
+        // a dense fabric ball: barely bounces, grips on contact, stops
+        // rolling fast — a small sandbag, not hollow plastic
+        restitution: 0.28, friction: 0.5, rollFriction: 1.3,
+        linearDamping: 0.05, tag: 'ball',
+        gravityScale: 0.95, // near-real weight; throwBoost keeps it aimable
       });
       world.physics.addBody(body);
       // impact noises, rate-limited per ball. Target hits are voiced by the
-      // target collider's onHit (heavy mitt thud) — don't double them here.
+      // target collider's onHit (the full doll thunk) — don't double them here.
       let lastSound = 0;
       body.onImpact = (speed, tag) => {
         if (this._now - lastSound < 0.09 || tag === 'ball' || tag === 'target') return;
         lastSound = this._now;
-        audio.play('knock',
-          { at: mesh.getWorldPosition(_v1).clone(), volume: Math.min(0.9, speed / 6), jitter: 0.12 });
+        this.sfx.surfaceThud(mesh.getWorldPosition(_v1).clone(), speed, tag);
       };
 
       const ball = {
         mesh, body,
         roll: audio.createRollLoop(mesh),
+        stuckTime: 0, // watchdog: seconds at rest somewhere unreachable
         grab: grabbables.add(mesh, {
           radius: BALL_RADIUS + 0.03, body,
-          // generous throw assist: a relaxed flick should reach the top shelf
-          throwBoost: 1.6,
+          // generous throw assist: a relaxed flick should reach the top
+          // shelf even at near-real gravity
+          throwBoost: 1.85,
           // the ball's CENTRE sits its own radius past the palm surface, so
           // it rests against the palm with the fingers curling around it —
           // the looser holdCurl keeps fingertips on, not through, the foam
@@ -462,6 +482,7 @@ export class BallTossGame extends MiniGame {
     }
     this.#animateTargets(dt, t);
     this.#updateBallAudio();
+    this.#sweepStuckBalls(dt);
 
     if (this.state === 'resetting') {
       // a stray ball can knock a doll while the wall is rising — re-raise it
@@ -473,6 +494,32 @@ export class BallTossGame extends MiniGame {
       if (this._dispenseQueue.length === 0 && this._pendingReturns.length === 0 &&
           this.targets.every(x => x.state === 'up')) {
         this.finishReset();
+      }
+    }
+  }
+
+  /**
+   * Watchdog: the zones cover the floor, but a ball can still come to rest
+   * somewhere the sweep can't work on it — wedged in a corner seam, sitting
+   * on a shelf between two dolls, asleep on a ledge. Any ball at rest
+   * behind the counter line for a few seconds gets quietly swallowed into
+   * the return pipe, exactly as if the attendant kicked it into the grate —
+   * all six balls ALWAYS come back to the tray.
+   */
+  #sweepStuckBalls(dt) {
+    for (const ball of this.balls) {
+      const b = ball.body;
+      if (!b.enabled || ball.grab.heldBy) { ball.stuckTime = 0; continue; }
+      const still = b.asleep || b.velocity.lengthSq() < 0.01;
+      const local = this.booth.group.worldToLocal(_v1.copy(b.position));
+      if (still && local.z < 0.5) {
+        ball.stuckTime += dt;
+        if (ball.stuckTime > 3) {
+          ball.stuckTime = 0;
+          this.#swallowBall(b);
+        }
+      } else {
+        ball.stuckTime = 0;
       }
     }
   }
