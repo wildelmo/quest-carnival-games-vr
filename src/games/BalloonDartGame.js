@@ -227,14 +227,13 @@ export class BalloonDartGame extends MiniGame {
         // blends into its dart pinch (see PINCH in Hands.js — index+middle
         // bunched on the barrel, thumb arced around the far side) while the
         // dart swings nose-out along the finger axis, mid-barrel landing in
-        // the pocket between the finger pads. Numbers tuned VISUALLY in
-        // /hand-lab.html (dev: open it, drag sliders, read the clearance
-        // panel) — with them the thumb pad kisses the barrel at 0mm and the
-        // index pad presses it by ~2mm.
-        holdOffset: { palm: 0.05, fingers: 0.052, up: 0.053 },
+        // the pocket between the finger pads. Numbers dialled in ON THE
+        // HEADSET with the in-game DartGripTuner (hold a dart, squeeze the
+        // empty hand's grip); /hand-lab.html has the same knobs on desktop.
+        holdOffset: { palm: 0.043, fingers: 0.059, up: 0.059 },
         holdCurl: 0.55,
         holdPose: 'pinch',
-        holdQuat: noseOutHoldQuat(),
+        holdQuat: noseOutHoldQuat(-15.4),
         onGrab: () => { d.state = 'held'; },
         onThrow: (vel) => this.#throwDart(d, vel),
       });
