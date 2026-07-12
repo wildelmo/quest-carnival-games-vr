@@ -3,6 +3,7 @@ import { World } from './core/World.js';
 import { Input } from './core/Input.js';
 import { Grabbables } from './core/Grabbables.js';
 import { DartGripTuner } from './core/DartGripTuner.js';
+import { GunGripTuner } from './core/GunGripTuner.js';
 import { Locomotion } from './core/Locomotion.js';
 import { AudioManager } from './core/AudioManager.js';
 import { BlobShadows } from './core/Shadows.js';
@@ -11,13 +12,14 @@ import { Comfort } from './core/Comfort.js';
 import { settings } from './core/settings.js';
 import { initEnvironment } from './core/environment.js';
 import { loadFonts } from './core/textures.js';
-import { Tent, TENT_RADIUS } from './env/Tent.js';
+import { Tent, TENT_RADIUS, PAD_RADIUS } from './env/Tent.js';
 import { Midway } from './env/Midway.js';
 import { ComingSoonBooth } from './components/BoothBase.js';
 import { ExitBell } from './components/ExitBell.js';
 import { BallTossGame } from './games/BallTossGame.js';
 import { BalloonDartGame } from './games/BalloonDartGame.js';
 import { RingTossGame } from './games/RingTossGame.js';
+import { ShootingGalleryGame } from './games/ShootingGalleryGame.js';
 
 /**
  * Carnival Arcade VR — entry point.
@@ -41,9 +43,10 @@ const world = new World(document.getElementById('app'));
 const input = new Input(world);
 const audio = new AudioManager(world.camera, world.scene);
 const grabbables = new Grabbables(world, input, audio);
-// in-headset dart grip tuning (hold dart + squeeze empty hand's grip);
-// registered BEFORE Locomotion so its stick claim lands the same frame
+// in-headset grip tuning (hold the object + squeeze the empty hand's grip);
+// registered BEFORE Locomotion so their stick claims land the same frame
 const gripTuner = new DartGripTuner(world, input, grabbables);
+const gunTuner = new GunGripTuner(world, input, grabbables);
 const locomotion = new Locomotion(world, input);
 const shadows = new BlobShadows(world);
 // big white carnival gloves for your hands + the comfort vignette
@@ -65,15 +68,23 @@ const midway = new Midway(world, audio);
 const deps = { world, input, audio, grabbables, locomotion, shadows };
 
 // ---- live games (pads 0..5 ring the tent) -------------------------------
+// The shooting gallery is a DOUBLE-WIDE booth: it takes both of the old
+// whack-a-mole and skee-ball slots (5 & 6 of 7), centred on their boundary.
+const GALLERY_ANGLE = (5.5 / 7) * Math.PI * 2;
+const galleryPad = {
+  position: new THREE.Vector3(
+    Math.sin(GALLERY_ANGLE) * PAD_RADIUS, 0, -Math.cos(GALLERY_ANGLE) * PAD_RADIUS),
+  angle: -GALLERY_ANGLE,
+};
 const games = [
   new BallTossGame(deps, tent.getPad(0)),
   new BalloonDartGame(deps, tent.getPad(1)),
   new RingTossGame(deps, tent.getPad(2)),
+  new ShootingGalleryGame(deps, galleryPad),
 ];
 
 // ---- future booths: decorated placeholders keep the tent feeling full ----
-const upcoming = ['MILK BOTTLES', 'WHACK-A-MOLE', 'SKEE-BALL'];
-upcoming.forEach((name, i) => new ComingSoonBooth(world, tent.getPad(3 + i), name));
+new ComingSoonBooth(world, tent.getPad(3), 'MILK BOTTLES');
 
 // ---- spawn: face the ball toss booth, offset so the pole isn't in view ----
 world.rig.position.set(1.1, 0, 2.4);
@@ -159,5 +170,5 @@ world.start();
 // dev convenience: expose for console poking
 window.__carnival = {
   world, games, tent, midway, input, deps, exitBell, exitExperience,
-  hands, comfort, settings, gripTuner,
+  hands, comfort, settings, gripTuner, gunTuner,
 };
