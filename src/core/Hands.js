@@ -7,8 +7,10 @@ import * as THREE from 'three';
  * a thumb built from capsules, and a flared cuff with a coloured band that
  * keeps the old handedness coding (blue left, orange right). The fingers
  * curl smoothly with the analog grip/trigger, snap around whatever you're
- * holding, and the cuff band glows when an empty hand is near something
- * grabbable (Grabbables sets hand.hoverGrab and adds a haptic tick).
+ * holding — or into a dart-throw pinch when the held object asks for it
+ * (holdPose: 'pinch') — and the cuff band glows when an empty hand is near
+ * something grabbable (Grabbables sets hand.hoverGrab and adds a haptic
+ * tick).
  *
  * In XR a glove rides each controller grip; on desktop the same glove is
  * drawn at the virtual hand so that mode stops feeling like a ghost.
@@ -77,11 +79,32 @@ function capsuleAlongMinusZ({ r, len }) {
 }
 
 /**
- * Build one glove. Returns { group, setCurl(k), setHover(on, t), curl }.
- * The group is in model space — fingers along -Z, palm facing -Y, wrist at
- * +Z (see GRIP_ALIGN, which maps this onto XR grip space).
+ * The dart-throw pinch (the "OK sign"): index and middle curl toward the
+ * thumb, the outer finger trails relaxed, and the thumb sweeps in across
+ * the palm to close the ring — blended in by setPose(curl, pinch).
+ *
+ * The fingers reuse the curl formulas with fixed per-finger curls, but the
+ * thumb gets explicit joint angles: its curl track (splay eased toward the
+ * fingers as it folds) can never actually reach the index fingertip. The
+ * numbers are solved numerically so the thumb tip-pad lands 4cm from the
+ * index tip-pad, perpendicular to the finger axis — precisely a 13mm dart
+ * barrel plus the two finger pads. The pinch point this closes on (grip
+ * space, anatomical) is { palm 0.053, fingers 0.077, up 0.030 }, which is
+ * where BalloonDartGame anchors a held dart's barrel.
  */
-function buildGlove(handedness) {
+const PINCH = {
+  finger: { index: 0.55, middle: 0.62, outer: 0.28 },
+  // canonical thumb pose (right hand; yaw mirrors via -side like the curl track)
+  thumb: { rootX: -0.20, yaw: -0.10, midX: -0.65 },
+};
+
+/**
+ * Build one glove. Returns { group, setPose(curl, pinch), setHover(on, t),
+ * curl, pinch }. The group is in model space — fingers along -Z, palm
+ * facing -Y, wrist at +Z (see GRIP_ALIGN, which maps this onto XR grip
+ * space).
+ */
+export function buildGlove(handedness) {
   const white = new THREE.MeshLambertMaterial({ color: GLOVE_WHITE });
   const group = new THREE.Group();
   group.name = `glove-${handedness}`;
@@ -128,6 +151,7 @@ function buildGlove(handedness) {
     const seg1 = new THREE.Mesh(capsuleAlongMinusZ(SEG1), white);
     root.add(seg1);
     const mid = new THREE.Group();
+    mid.name = `fingerMid${fingers.length}`;
     mid.position.set(0, 0, -(SEG1.len + SEG1.r * 2) + 0.004);
     mid.add(new THREE.Mesh(capsuleAlongMinusZ(SEG2), white));
     root.add(mid);
@@ -146,26 +170,38 @@ function buildGlove(handedness) {
   const thumb = new THREE.Mesh(capsuleAlongMinusZ({ r: 0.017, len: 0.024 }), white);
   thumbRoot.add(thumb);
   const thumbMid = new THREE.Group();
+  thumbMid.name = 'thumbMid';
   thumbMid.position.set(0, 0, -0.05);
   thumbMid.add(new THREE.Mesh(capsuleAlongMinusZ({ r: 0.0155, len: 0.014 }), white));
   thumbRoot.add(thumbMid);
   wrap.add(thumbRoot);
 
+  // which of the three cartoon fingers plays the index (nearest the thumb):
+  // fingers[] runs -X to +X and the thumb sits on -X right / +X left
+  const indexAt = handedness === 'left' ? 2 : 0;
+
   return {
     group,
     curl: 0.2,
-    setCurl(k) {
+    pinch: 0,
+    setPose(k, pinch = 0) {
       this.curl = k;
-      for (const f of fingers) {
-        f.root.rotation.x = -(0.16 + k * 1.22);
-        f.mid.rotation.x = -(0.1 + k * 1.42);
+      this.pinch = pinch;
+      const lerp = THREE.MathUtils.lerp;
+      for (let i = 0; i < 3; i++) {
+        const role = i === indexAt ? PINCH.finger.index
+          : i === 1 ? PINCH.finger.middle : PINCH.finger.outer;
+        const fk = lerp(k, role, pinch);
+        fingers[i].root.rotation.x = -(0.16 + fk * 1.22);
+        fingers[i].mid.rotation.x = -(0.1 + fk * 1.42);
       }
       // the thumb opposes: as the fingers close it sweeps in across the
       // palm (yaw eases toward the fingers) AND folds down over whatever
-      // is held, so a full grab reads as a real grip, not four hooks
-      thumbRoot.rotation.x = -(0.08 + k * 1.0);
-      thumbRoot.rotation.y = -side * (0.95 - k * 0.75);
-      thumbMid.rotation.x = -(0.06 + k * 1.05);
+      // is held, so a full grab reads as a real grip, not four hooks —
+      // and blends to its explicit pinch pose while a dart is held
+      thumbRoot.rotation.x = lerp(-(0.08 + k * 1.0), PINCH.thumb.rootX, pinch);
+      thumbRoot.rotation.y = -side * lerp(0.95 - k * 0.75, PINCH.thumb.yaw, pinch);
+      thumbMid.rotation.x = lerp(-(0.06 + k * 1.05), PINCH.thumb.midX, pinch);
     },
     setHover(on, t) {
       band.material.emissiveIntensity = on ? 0.6 + 0.35 * Math.sin(t * 9) : 0.3;
@@ -188,8 +224,12 @@ export class Hands {
     world.onUpdate((dt, t) => this.#update(dt, t));
   }
 
-  #ease(glove, target, dt) {
-    glove.setCurl(THREE.MathUtils.lerp(glove.curl, target, Math.min(1, dt * 14)));
+  #ease(glove, curl, pinch, dt) {
+    const k = Math.min(1, dt * 14);
+    glove.setPose(
+      THREE.MathUtils.lerp(glove.curl, curl, k),
+      THREE.MathUtils.lerp(glove.pinch, pinch, k),
+    );
   }
 
   #update(dt, t) {
@@ -212,11 +252,12 @@ export class Hands {
         }
         glove.group.visible = true;
         // curl to the held object's own grip (a fat ball keeps the fist
-        // wider open than a pinched dart) instead of one canned fist
+        // wider open than a pinched dart) instead of one canned fist; a
+        // holdPose of 'pinch' blends the fingers into the dart-throw ring
         const held = this.grabbables.held[hand.index];
         const target = held ? held.holdCurl
           : 0.15 + Math.max(hand.gripValue, hand.triggerValue) * 0.85;
-        this.#ease(glove, target, dt);
+        this.#ease(glove, target, held?.holdPose === 'pinch' ? 1 : 0, dt);
         glove.setHover(hand.hoverGrab, t);
       }
     } else {
@@ -235,7 +276,8 @@ export class Hands {
       glove.group.position.copy(_vOffset.set(0.05, -0.05, 0)
         .applyQuaternion(hand.gripQuaternion).add(hand.gripPosition));
       const held = this.grabbables.held[hand.index];
-      this.#ease(glove, held ? held.holdCurl : 0.22, dt);
+      this.#ease(glove, held ? held.holdCurl : 0.22,
+        held?.holdPose === 'pinch' ? 1 : 0, dt);
       glove.setHover(hand.hoverGrab, t);
     }
   }

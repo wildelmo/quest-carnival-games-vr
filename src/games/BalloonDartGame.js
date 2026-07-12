@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { MiniGame } from './registry.js';
+import { noseOutHoldQuat } from '../core/Grabbables.js';
 import { BoothBase } from '../components/BoothBase.js';
 import { corkTexture, CARNIVAL_PALETTE } from '../core/textures.js';
 import { shiny } from '../core/environment.js';
@@ -18,10 +19,13 @@ import { shiny } from '../core/environment.js';
  * limp scraps of rubber swell back into balloons one after another with a
  * wobbly overshoot, then lock — no balloons ever just "appear".
  *
- * A held dart is a FREE OBJECT: it keeps whatever orientation you grabbed
- * it in and turns 1:1 with your wrist, like picking anything up in real
- * life (see Grabbables). On release the needle swings into the flight
- * path over the first fraction of a second, so any grip throws true.
+ * A picked-up dart SNAPS INTO A THROWING GRIP: the glove pinches into the
+ * classic "OK sign" around the barrel (index and middle at the thumb, see
+ * Hands.js) while the dart itself swings nose-out over the fingertips —
+ * however you plucked it from the tray, a beat later you're visibly
+ * holding a dart, not a dart-through-fist. From there it rides the wrist
+ * 1:1; on release the needle swings into the flight path over the first
+ * fraction of a second, so any arm action throws true.
  *
  * Darts are NOT physics bodies: they fly on a swept segment each frame and
  * test balloon spheres + the board plane, which is cheaper and far more
@@ -253,11 +257,16 @@ export class BalloonDartGame extends MiniGame {
       d.grab = this.deps.grabbables.add(dart, {
         radius: 0.075,
         throwBoost: 1.45, // darts are precise, not powerful — help them along
-        // pinched at the fingertips (a dart's grip is the barrel, held in
-        // the fingers, never buried in the palm); its ORIENTATION is
-        // whatever it was when grabbed — turn it in your hand at will
-        holdOffset: { palm: 0.07, fingers: 0.04 },
-        holdCurl: 0.8,
+        // a picked-up dart SEATS ITSELF in a real throwing grip: the glove
+        // blends into its "OK sign" pinch (see PINCH in Hands.js) while the
+        // dart swings nose-out along the finger axis, barrel landing at the
+        // pinch point between the thumb and index pads. The offsets are the
+        // solved pinch centre { palm 0.053, fingers 0.077, up 0.030 } minus
+        // the barrel's 0.022 lead from the dart origin along the nose.
+        holdOffset: { palm: 0.053, fingers: 0.055, up: 0.03 },
+        holdCurl: 0.55,
+        holdPose: 'pinch',
+        holdQuat: noseOutHoldQuat(),
         onGrab: () => { d.state = 'held'; },
         onThrow: (vel) => this.#throwDart(d, vel),
       });
@@ -380,7 +389,8 @@ export class BalloonDartGame extends MiniGame {
           d.velocity.y += DART_GRAVITY * dt;
           d.mesh.position.addScaledVector(d.velocity, dt);
           // the needle SWINGS into the velocity vector rather than snapping:
-          // a dart released at any angle (it holds its natural grip pose)
+          // a dart released at any angle (the pinch grip rides the wrist,
+          // so the nose points wherever the hand was cocked at release)
           // visibly rights itself over the first ~100ms, like real flights
           // do. lookAt() points +Z at the target and the nose is modelled
           // on -Z, so aim at a point BEHIND the dart to make the needle lead.
