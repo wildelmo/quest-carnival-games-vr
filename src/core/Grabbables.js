@@ -34,6 +34,14 @@ import { REST_PITCH_DEG } from './Hands.js';
  * A grabbable with a physics `body` gets its body disabled while held and
  * re-enabled with the throw velocity on release. Objects without a body
  * (darts) receive the velocity via their `onThrow` callback instead.
+ *
+ * TOOLS THAT FIRE WHILE HELD (the gallery six-shooters) set
+ * `onTriggerFire`: in XR every trigger edge while holding calls it (the
+ * edge that performed the grab itself doesn't also fire), and on desktop
+ * a click while holding fires instead of throwing. Pair it with
+ * `gripRelease: true` so only letting go of the SQUEEZE drops the object —
+ * without it, a player who grabbed the gun with the trigger would drop it
+ * on their first shot's release.
  */
 
 const _v1 = new THREE.Vector3();
@@ -104,6 +112,12 @@ export class Grabbable {
     this.onGrab = opts.onGrab ?? null;
     /** (velocity: Vector3, hand) — called on release for bodiless objects */
     this.onThrow = opts.onThrow ?? null;
+    /** (hand) — trigger edge while held fires the tool instead of nothing;
+     *  on desktop, click-while-holding fires instead of throwing */
+    this.onTriggerFire = opts.onTriggerFire ?? null;
+    /** XR: only releasing the grip squeeze lets go (trigger taps never drop) */
+    this.gripRelease = opts.gripRelease ?? false;
+    this._grabbedThisFrame = false;
     // captured at grab time: hand-local pose of the object
     this._grabQuat = new THREE.Quaternion();
     this._grabPos = new THREE.Vector3();
@@ -123,6 +137,7 @@ export class Grabbables {
     this.audio = audio;
     this.items = [];
     this.held = [null, null]; // per hand index
+    this._prevGrip = [false, false]; // squeeze state last frame (gripRelease)
     world.onUpdate((dt) => this.#update(dt));
   }
 
@@ -168,13 +183,27 @@ export class Grabbables {
         if (!holding) {
           this.#tryGrab(hand);
         } else if (!isXR) {
-          // desktop: second click = throw forward
-          this.#release(hand, /*desktopThrow*/ true);
+          // desktop: second click = fire the held tool, or throw forward
+          if (holding.onTriggerFire) holding.onTriggerFire(hand);
+          else this.#release(hand, /*desktopThrow*/ true);
         }
       }
-      if (hand.justReleased && holding && isXR) {
+      if (hand.justReleased && holding && isXR && !holding.gripRelease) {
         this.#release(hand, false);
       }
+      // held tools: trigger edges fire; gripRelease items only leave the
+      // hand when the squeeze is released (so shooting never drops the gun)
+      const tool = this.held[idx];
+      if (tool && isXR) {
+        if (tool.onTriggerFire && hand.justTriggered && !tool._grabbedThisFrame) {
+          tool.onTriggerFire(hand);
+        }
+        if (tool.gripRelease && this._prevGrip[idx] && !hand.gripPressed) {
+          this.#release(hand, false);
+        }
+      }
+      if (tool) tool._grabbedThisFrame = false;
+      this._prevGrip[idx] = hand.gripPressed;
       // follow the hand while held: the pose captured at grab time rides
       // the wrist 1:1 — turn your hand, the object turns with it. A
       // holdQuat overrides that: the object swings into its canned grip
@@ -256,6 +285,7 @@ export class Grabbables {
     best._grabQuat.copy(_q1).multiply(best.object.quaternion);
     best._grabPos.copy(best.object.position).sub(hand.gripPosition).applyQuaternion(_q1);
     best._settle = 0;
+    best._grabbedThisFrame = true; // the grabbing trigger edge mustn't also fire
     hand.pulse(0.4, 30);
     if (best.onGrab) best.onGrab(hand);
   }

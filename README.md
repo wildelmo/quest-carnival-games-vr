@@ -51,8 +51,24 @@ hand is near something you can grab.
   at you — just like the real (honest-but-brutal) game. RESET sweeps
   every ring back into the bucket.
 
-Three more pads stand roped off with "coming soon" marquees:
-Milk Bottles, Whack-a-Mole, Skee-Ball.
+- **🔫 Shooting Gallery** — a deep double-wide cabinet (it took over the
+  old whack-a-mole and skee-ball pads): a painted countryside backdrop,
+  three stepped conveyor rows of tin animal silhouettes — ducks waddling
+  one way, rabbits hopping the other, quick little bluebirds along the
+  top — sliding behind scalloped water-wave rails and turning around out
+  of sight behind the prize cabinets. Two spinning star targets flank a
+  fez-wearing cymbal MONKEY who claps you a celebration every time your
+  score crosses a threshold (and chatters indignantly if you shoot him).
+  Two tethered toy six-shooters rest on the counter: grip to draw one
+  (the glove closes into a real pistol grip, its trigger finger riding
+  your analog trigger), trigger to fire. Six shots, then the hammer
+  clicks dry and the cylinder whirls a reload — point the barrel at the
+  roof to hurry it, like a showman. Hits ring each target's own tin TING
+  and slap the plate down; misses leave fading dents in the paintwork.
+  Downed animals pop back up as the conveyor carries them behind the
+  cabinets, so the wall never runs empty.
+
+One more pad stands roped off with a "coming soon" marquee: Milk Bottles.
 
 A brass **EXIT bell** on a striped post by the tent's centre pole ends the
 experience — pull its cord (or press `E` on desktop) to ring out, drop back
@@ -85,8 +101,9 @@ instead* gives you a mouse/keyboard version of the same tent.
 | Move | left stick (smooth walk) | WASD (+Shift to hurry) |
 | Turn | right stick left/right = 30° snap | mouse look (click to lock pointer) |
 | Teleport | push right stick forward, aim arc, release | — |
-| Grab ball/dart/ring | grip or trigger near the object | click (nearest object ahead) |
+| Grab ball/dart/ring/gun | grip or trigger near the object | click (nearest object ahead) |
 | Throw | swing arm + release grip | click again (throws along view) |
+| Fire six-shooter | trigger while holding it (grip release puts it down) | click again (fires along view) |
 | Buttons / exit bell | physically poke / touch | look at it up close, press `E` |
 
 ## Project layout
@@ -122,6 +139,10 @@ src/
     BalloonDartGame.js
     RingTossGame.js  rigid-ring flight + analytic bottle-lattice contacts
     RingTossAudio.js modal-synth plastic-on-glass voice (per-bottle pitch)
+    ShootingGalleryGame.js   conveyor targets, cymbal monkey, six-shooters
+    ShootingGalleryAudio.js  cork-gun pop, per-target tin TING, cymbals
+    galleryTextures.js       painted backdrop, silhouettes, wave rails
+    revolverMesh.js          the tethered toy six-shooter
 public/assets/       CC0 sounds, free music, OFL fonts (see CREDITS.md)
 ```
 
