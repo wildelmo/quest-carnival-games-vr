@@ -3,6 +3,7 @@ import { noseOutHoldQuat } from './Grabbables.js';
 
 /**
  * DartGripTuner — tune the dart's hold pose FROM INSIDE the headset.
+ * (Currently dormant — see TUNER_ENABLED below.)
  *
  * The hand-lab page (/hand-lab.html) is great on a desktop browser but
  * useless mid-session on a Quest, so this brings the same knobs in-VR:
@@ -24,6 +25,16 @@ import { noseOutHoldQuat } from './Grabbables.js';
  * Locomotion honours — adjusting the grip never walks or snap-turns you.
  * XR-only; the desktop surface has the hand-lab.
  */
+
+/**
+ * Master switch. The grip shipped in BalloonDartGame was dialled in with
+ * this tool and players kept tripping into the panel by squeezing an empty
+ * hand while holding a dart — so it's OFF. Flip to true whenever the grip
+ * needs re-tuning; everything below is kept wired up and working. While
+ * off, saved headset values are also ignored, so the shipped numbers are
+ * the single source of truth.
+ */
+const TUNER_ENABLED = false;
 
 const STORE_KEY = 'carnival.dartGrip.v1';
 const MOVE_RATE = 0.03;      // m/s at full stick — slow enough for mm work
@@ -87,6 +98,7 @@ export class DartGripTuner {
   }
 
   #update(dt, t) {
+    if (!TUNER_ENABLED) return;
     if (!this.input.isXR || !this.#lazyInit()) {
       if (this._panel) this._panel.visible = false;
       return;
