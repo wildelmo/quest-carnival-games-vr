@@ -63,9 +63,13 @@ hand is near something you can grab.
   (the glove closes into a real pistol grip, its trigger finger riding
   your analog trigger), trigger to fire — no reloading, the cylinder just
   clicks round a fresh chamber forever. Hits ring each target's own tin
-  TING and slap the plate down; misses leave fading dents in the
-  paintwork. Downed animals pop back up as the conveyor carries them
-  behind the cabinets, so the wall never runs empty. And the cabinet is
+  TING and slap the plate down — and they're tested against the painted
+  silhouette itself, so you have to actually hit the duck, not the air
+  beside it. Misses leave fading dents in the paintwork. Downed animals
+  pop back up as the conveyor carries them behind the cabinets, so the
+  wall never runs empty — and every 10–20 passes one comes back as the
+  WILD CLOWN, worth +150 and a confetti-spinning, slide-whistle-honking
+  celebration if you can pick him off. And the cabinet is
   crowded with sideshow shots, like the real travelling galleries: a
   carnival PRIZE WHEEL that spins against a clacking flapper and pays
   whatever wedge it lands on (the gold 200 wedge earns a monkey ovation),

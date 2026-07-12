@@ -7,8 +7,8 @@ import { stripesTexture, woodTexture, barberPoleTexture, CARNIVAL_PALETTE } from
 import { buildRevolver } from './revolverMesh.js';
 import { ShootingGalleryAudio } from './ShootingGalleryAudio.js';
 import {
-  galleryBackdropTexture, waveRailTexture, targetTexture, bulletHoleTexture,
-  prizeWheelTexture, lollipopTexture, pipTexture, bangTexture,
+  galleryBackdropTexture, waveRailTexture, targetTexture, targetAlphaMask,
+  bulletHoleTexture, prizeWheelTexture, lollipopTexture, pipTexture, bangTexture,
 } from './galleryTextures.js';
 
 /**
@@ -30,7 +30,13 @@ import {
  * every shot. Shots are hitscan with a muzzle flash and a cork-gun POP;
  * hits ring the target's own tin TING and slap the plate down; misses
  * dent the painted backdrop. Letting go (or wandering off with one) lets
- * the counter tether reel the gun back to its cradle.
+ * the counter tether reel the gun back to its cradle. Hits are tested
+ * against each plate's actual painted SILHOUETTE (alpha mask on the
+ * plate's plane, see #hitscan) — grazing the air beside a duck misses.
+ *
+ * Every 10–20 conveyor passes, one wrapping animal comes back as the
+ * WILD CLOWN: shoot him for +150 and he throws a whole routine — spins,
+ * hops, confetti, slide-whistle WHOOP and a squeeze-horn HONK.
  *
  * Around the conveyors the cabinet is crowded with SIDESHOW targets, the
  * way the real travelling galleries are:
@@ -60,6 +66,12 @@ const ROWS = [
 const SPINNER_POINTS = 50;
 const GOLD_MULT = 3;
 const CLAP_THRESHOLDS = [100, 250, 450, 700];
+
+// the WILD CLOWN: a rare specialty plate that replaces a wrapping animal
+// every SPECIAL_EVERY-ish conveyor passes, worth a show-stopping payout
+const SPECIAL_POINTS = 150;
+const SPECIAL_SCALE = 1.3;
+const SPECIAL_EVERY = () => 10 + Math.random() * 10; // wraps between clowns
 
 // sideshow payouts
 const PIP_POINTS = 40;
@@ -110,6 +122,7 @@ export class ShootingGalleryGame extends MiniGame {
       colorA: '#c2183c', colorB: '#ffd23f',
       signColors: { bg: '#1d2a63', rainbow: true },
       shelfY: 2.72, // prizes strung along the very top, clear of the backdrop
+      scoreboardY: 3.48, // above the plush shelf, which otherwise hides it
       resetButtonLocal: new THREE.Vector3(1.75, 0.98, 1.48),
       onReset: () => this.requestReset(),
     });
@@ -128,6 +141,21 @@ export class ShootingGalleryGame extends MiniGame {
     this._attractAt = 20;
     this._sunBonusGiven = false;
     this._statusFlashUntil = 0;
+
+    // silhouette hit masks: shots must strike the painted tin, not a
+    // bounding sphere — "hit the outline" is the whole game
+    this._masks = {
+      duck: targetAlphaMask('duck'), rabbit: targetAlphaMask('rabbit'),
+      bird: targetAlphaMask('bird'), star: targetAlphaMask('star'),
+      clown: targetAlphaMask('clown'),
+    };
+    this._clownMat = new THREE.MeshLambertMaterial({
+      map: targetTexture('clown'), alphaTest: 0.5, side: THREE.DoubleSide,
+      emissive: 0xff6090, emissiveIntensity: 0.15,
+    });
+    this._wrapCount = 0;
+    this._nextSpecialAt = SPECIAL_EVERY();
+    this._specialActive = false;
 
     this.#buildStage();
     this.#buildTargets();
@@ -234,6 +262,7 @@ export class ShootingGalleryGame extends MiniGame {
           carrier, plate, row,
           up: true, flipK: 1, riseK: 1, rising: false,
           gold, seed: seed++,
+          special: false, celebrate: 0, baseMat: null,
           points: (gold ? GOLD_MULT : 1) * row.points,
         });
       }
@@ -813,14 +842,55 @@ export class ShootingGalleryGame extends MiniGame {
       if (d2 < r * r && tc < bestT) { bestT = tc; bestHit = hit; }
     };
 
+    // silhouette test: sample the plate's alpha mask where the ray meets
+    // its plane, plus a thin ring of edge forgiveness — so a shot counts
+    // only when it would actually plink the painted tin
+    const maskHit = (mask, u, v, rPx) => {
+      const M = mask.size;
+      const probe = (px, py) =>
+        px >= 0 && py >= 0 && px < M && py < M && mask.data[py * M + px];
+      const cx = Math.round(u * (M - 1)), cy = Math.round((1 - v) * (M - 1));
+      if (probe(cx, cy)) return true;
+      for (let i = 0; i < 8; i++) {
+        const a = i * Math.PI / 4;
+        if (probe(Math.round(cx + Math.cos(a) * rPx),
+          Math.round(cy + Math.sin(a) * rPx))) return true;
+      }
+      return false;
+    };
+    // half the sphere-days assist, expressed in mask pixels for this plate
+    const edgePx = (sizeM, mask) =>
+      Math.max(1, Math.round((assist * 0.5 / sizeM) * mask.size));
+
     for (const tg of this.targets) {
-      if (!tg.up) continue;
-      const r = tg.row.size * 0.55 + assist;
-      sphere(tg.carrier.position.x, tg.row.y + tg.row.size / 2, tg.row.z, r,
-        { kind: 'target', tg });
+      if (!tg.up || Math.abs(d.z) < 1e-5) continue;
+      const t = (tg.row.z - o.z) / d.z;
+      if (t < 0 || t > 12 || t >= bestT) continue;
+      const s = tg.row.size * (tg.special ? SPECIAL_SCALE : 1);
+      let u = (o.x + d.x * t - tg.carrier.position.x) / s + 0.5;
+      const v = (o.y + d.y * t - tg.row.y) / s;
+      if (u < 0 || u > 1 || v < 0 || v > 1) continue;
+      if (tg.plate.scale.x < 0) u = 1 - u; // mirrored silhouettes
+      const mask = this._masks[tg.special ? 'clown' : tg.row.kind];
+      if (maskHit(mask, u, v, edgePx(s, mask))) {
+        bestT = t;
+        bestHit = { kind: 'target', tg };
+      }
     }
     for (const sp of this.spinners) {
-      sphere(sp.x, sp.y, sp.z, 0.19 + assist, { kind: 'spinner', sp });
+      if (Math.abs(d.z) < 1e-5) continue;
+      const t = (sp.z - o.z) / d.z;
+      if (t < 0 || t > 12 || t >= bestT) continue;
+      // undo the plate's spin so the star's points are where the mask says
+      const dx = o.x + d.x * t - sp.x, dy = o.y + d.y * t - sp.y;
+      const ca = Math.cos(sp.plate.rotation.z), sa = Math.sin(sp.plate.rotation.z);
+      const u = (dx * ca + dy * sa) / 0.36 + 0.5;
+      const v = (-dx * sa + dy * ca) / 0.36 + 0.5;
+      if (u < 0 || u > 1 || v < 0 || v > 1) continue;
+      if (maskHit(this._masks.star, u, v, edgePx(0.36, this._masks.star))) {
+        bestT = t;
+        bestHit = { kind: 'spinner', sp };
+      }
     }
     // the sideshow: pips are precision shots — barely any assist
     for (const pip of this.pips) {
@@ -877,6 +947,7 @@ export class ShootingGalleryGame extends MiniGame {
   }
 
   #hitTarget(tg, at) {
+    if (tg.special) return this.#hitSpecial(tg, at);
     tg.up = false;
     tg.flipK = 0;
     this.sfx.targetTing(at, tg.seed, 1);
@@ -884,6 +955,28 @@ export class ShootingGalleryGame extends MiniGame {
     this.#puff(at, 0xffe9a0, 0.05, 0.18);
     const prev = this.score;
     if (this.addScore(tg.points, at)) this.#checkThresholds(prev);
+  }
+
+  /** the WILD CLOWN goes off: whoop-HONK, confetti, a spinning bow */
+  #hitSpecial(tg, at) {
+    tg.up = false;
+    tg.flipK = 1;   // no tin flip — he does his own routine
+    tg.celebrate = 1;
+    this.sfx.targetTing(at, tg.seed, 0.8);
+    this.sfx.clownWhoop(at);
+    const confetti = [0xff5d73, 0xffd23f, 0x3aa0ff, 0x8bc34a];
+    for (let i = 0; i < 7; i++) {
+      _v2.copy(at);
+      _v2.x += (Math.random() - 0.5) * 0.35;
+      _v2.y += (Math.random() - 0.5) * 0.3;
+      this.#puff(_v2, confetti[i % confetti.length], 0.06, 0.35);
+    }
+    const prev = this.score;
+    if (this.addScore(SPECIAL_POINTS, at)) {
+      this.#statusFlash('WILD CLOWN +' + SPECIAL_POINTS + '!');
+      this.#celebrate(3, false);
+      this.#checkThresholds(prev);
+    }
   }
 
   #hitSpinner(sp, at) {
@@ -1035,6 +1128,15 @@ export class ShootingGalleryGame extends MiniGame {
     this.wheel.spinning = false;
     this.monkey.clapsLeft = 0;
     this.monkey.angryT = 0;
+    // any mid-bow clown settles instantly so the rise show owns the plates
+    for (const tg of this.targets) {
+      if (tg.celebrate > 0) {
+        tg.celebrate = 0;
+        tg.plate.rotation.y = 0;
+        tg.carrier.position.y = tg.row.y;
+        tg.plate.scale.set(Math.sign(tg.plate.scale.x) * SPECIAL_SCALE, SPECIAL_SCALE, 1);
+      }
+    }
     const down = this.targets.filter(tg => !tg.up);
     down.sort(() => Math.random() - 0.5);
     down.forEach((tg, i) => {
@@ -1159,12 +1261,28 @@ export class ShootingGalleryGame extends MiniGame {
       let x = tg.carrier.position.x + row.dir * row.speed * dt;
       if (row.dir > 0 && x > TRACK_HALF) {
         x -= TRACK_HALF * 2;
-        this.#standTargetUp(tg);
+        this.#onTargetWrapped(tg);
       } else if (row.dir < 0 && x < -TRACK_HALF) {
         x += TRACK_HALF * 2;
-        this.#standTargetUp(tg);
+        this.#onTargetWrapped(tg);
       }
       tg.carrier.position.x = x;
+
+      // the wild clown's victory lap: spins, hops, swells — then lies down
+      if (tg.celebrate > 0) {
+        tg.celebrate = Math.max(0, tg.celebrate - dt / 0.9);
+        const k = 1 - tg.celebrate;
+        tg.plate.rotation.y = k * Math.PI * 6;
+        tg.carrier.position.y = row.y + Math.sin(k * Math.PI) * 0.16;
+        const sc = SPECIAL_SCALE * (1 + 0.3 * Math.sin(k * Math.PI));
+        tg.plate.scale.set(Math.sign(tg.plate.scale.x) * sc, sc, 1);
+        if (tg.celebrate === 0) {
+          tg.plate.rotation.y = 0;
+          tg.carrier.position.y = row.y;
+          tg.plate.scale.set(Math.sign(tg.plate.scale.x) * SPECIAL_SCALE, SPECIAL_SCALE, 1);
+          tg.plate.rotation.x = -1.72; // takes a bow, back at the next wrap
+        }
+      }
 
       // flip-down animation (hit) / creak-up animation (reset show)
       if (!tg.up && tg.flipK < 1) {
@@ -1192,6 +1310,39 @@ export class ShootingGalleryGame extends MiniGame {
     tg.up = true;
     tg.flipK = 1;
     tg.plate.rotation.x = 0;
+  }
+
+  /**
+   * Every conveyor turnaround happens out of sight behind a cabinet — the
+   * moment to stand plates back up, retire a spent clown, and every 10–20
+   * animal passes, sneak the WILD CLOWN in wearing some animal's spot.
+   */
+  #onTargetWrapped(tg) {
+    if (tg.special) this.#revertSpecial(tg);
+    else if (!this._specialActive && ++this._wrapCount >= this._nextSpecialAt) {
+      this.#makeSpecial(tg);
+    }
+    this.#standTargetUp(tg);
+  }
+
+  #makeSpecial(tg) {
+    this._specialActive = true;
+    this._wrapCount = 0;
+    this._nextSpecialAt = SPECIAL_EVERY();
+    tg.special = true;
+    tg.baseMat = tg.plate.material;
+    tg.plate.material = this._clownMat;
+    tg.plate.scale.set(tg.row.dir * SPECIAL_SCALE, SPECIAL_SCALE, 1);
+  }
+
+  #revertSpecial(tg) {
+    this._specialActive = false;
+    tg.special = false;
+    tg.celebrate = 0;
+    tg.plate.material = tg.baseMat;
+    tg.plate.rotation.y = 0;
+    tg.carrier.position.y = tg.row.y;
+    tg.plate.scale.set(tg.row.dir, 1, 1);
   }
 
   #updateSpinners(dt) {
