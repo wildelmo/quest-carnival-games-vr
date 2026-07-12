@@ -20,12 +20,18 @@ hand is near something you can grab.
 
 **Playable now:**
 
-- **🎯 Down the Clown (ball toss)** — a chute dispenses six foam softballs into your tray.
-  Knock down the wall of plush carnival clowns (5 wide, 4 shelves) before
-  the timer runs out. Targets wobble on glancing hits and slam backwards on
-  solid ones; balls bounce around the stall, get swept into the grate at
-  the base of the wall and ride the return pipe back to your tray.
-  Rows score 10–40, clear the board for a bonus.
+- **🎯 Down the Clown (ball toss)** — a chute dispenses six dense
+  fabric-skinned balls into your tray: they throw and land like small
+  sandbags, not hollow plastic. Knock down the wall of plush carnival
+  clowns (5 wide, 4 shelves) before the timer runs out. A solid hit lands
+  with a deep THUNK — synthesized wooden-core thump and cloth whump under
+  a pitched-down recorded punch — and the ball punches *through* the doll
+  as it slams backwards, momentum spent instead of bounced back; glancing
+  hits wobble the doll and drop the ball dead. Balls get swept into the
+  wall-to-wall grate at the base of the wall and ride the return pipe
+  back to your tray, and a watchdog sweeps up any ball that settles
+  somewhere unreachable, so all six always come back. Rows score 10–40,
+  clear the board for a bonus.
 - **🎈 Balloon Darts** — a 6ft × 5ft cork board packed with 35 jiggling
   balloons (three gold ones are worth extra). Throw darts, pop balloons
   (shards, real pop sound), darts stick in the cork. Hit the big red
@@ -111,7 +117,8 @@ src/
                      carousel, crowds, fireworks, searchlights
   games/
     registry.js      MiniGame base class + how-to-add-a-booth notes
-    BallTossGame.js
+    BallTossGame.js  sandbag-ball flight, punch-through knockdowns, ball return
+    BallTossAudio.js synthesized sandbag-on-doll thunk voice
     BalloonDartGame.js
     RingTossGame.js  rigid-ring flight + analytic bottle-lattice contacts
     RingTossAudio.js modal-synth plastic-on-glass voice (per-bottle pitch)
@@ -165,6 +172,14 @@ knockdown, wood knocks for darts thunking into cork and rings rapping the
 stalls) plus **recorded balloon bursts** (MIT, from the Super-Darts
 project) — with random variation and pitch jitter; the music is a free
 ragtime track by **Anttis Instrumentals**.
+
+The ball toss gets a dedicated impact voice
+(`src/games/BallTossAudio.js`): every doll strike layers a synthesized
+low pitch-dropping thump (the wooden core) and a band-limited cloth
+"whump" under the recorded punch samples, pitched down so a knockdown
+reads as a small sandbag burying itself in a cloth-wrapped doll rather
+than plastic bouncing off rubber; floor, shelf and wall contacts reuse
+the same dead thump under muted wood/canvas layers.
 
 The ring toss gets its own physically-modelled voice on top
 (`src/games/RingTossAudio.js`): every ring–bottle contact is modal
