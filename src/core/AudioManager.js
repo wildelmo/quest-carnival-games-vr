@@ -56,6 +56,15 @@ const SWAPPABLE = {
 // whether the app is served from a domain root or a GitHub Pages subpath.
 const SOUND_DIR = import.meta.env.BASE_URL + 'assets/sounds/';
 
+// Bandstand music: a background bed for the whole tent. It still emits from
+// the pole-side speaker prop (so it has a direction), but a wide refDistance
+// and gentle rolloff keep it at roughly full level from the spawn out past
+// the booths (PAD_RADIUS 4.6) and only easing off near the tent wall
+// (TENT_RADIUS 8.4) — the ragtime should read everywhere, not just at the pole.
+const MUSIC_VOLUME = 0.45;
+const MUSIC_REF_DISTANCE = 6;
+const MUSIC_ROLLOFF = 0.6;
+
 export class AudioManager {
   /**
    * @param {THREE.Camera} camera listener rides on the head
@@ -76,7 +85,7 @@ export class AudioManager {
   /** Music toggle (ambience beds are the world — they stay). */
   setMusicEnabled(on) {
     this._musicOn = on;
-    if (this._musicSound?.buffer) this._musicSound.setVolume(on ? 0.35 : 0);
+    if (this._musicSound?.buffer) this._musicSound.setVolume(on ? MUSIC_VOLUME : 0);
   }
 
   /** Fetch + decode all samples up front (a few hundred KB total). */
@@ -251,9 +260,9 @@ export class AudioManager {
     new THREE.AudioLoader().load(SOUND_DIR + SWAPPABLE.music, (buf) => {
       sound.setBuffer(buf);
       sound.setLoop(true);
-      sound.setRefDistance(3.5);
-      sound.setRolloffFactor(1.1);
-      sound.setVolume(this._musicOn ? 0.35 : 0);
+      sound.setRefDistance(MUSIC_REF_DISTANCE);
+      sound.setRolloffFactor(MUSIC_ROLLOFF);
+      sound.setVolume(this._musicOn ? MUSIC_VOLUME : 0);
       sound.play();
     });
     anchor.add(sound);
