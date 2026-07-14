@@ -9,6 +9,7 @@ import { AudioManager } from './core/AudioManager.js';
 import { BlobShadows } from './core/Shadows.js';
 import { Hands } from './core/Hands.js';
 import { Comfort } from './core/Comfort.js';
+import { MusicControl } from './core/MusicControl.js';
 import { settings } from './core/settings.js';
 import { initEnvironment } from './core/environment.js';
 import { loadFonts } from './core/textures.js';
@@ -53,6 +54,9 @@ const shadows = new BlobShadows(world);
 const hands = new Hands(world, input, grabbables);
 const comfort = new Comfort(world, input, locomotion);
 audio.setMusicEnabled(settings.data.music);
+// music on/off toggle (Quest: B/Y face button, desktop: M) — the last
+// survivor of the removed operator panel, so players can turn music back on
+const musicControl = new MusicControl(world, input, audio);
 
 // bake the carnival-toned env map (one-off, ~ms) so every shiny material
 // built after this picks up real reflections
@@ -170,5 +174,5 @@ world.start();
 // dev convenience: expose for console poking
 window.__carnival = {
   world, games, tent, midway, input, deps, exitBell, exitExperience,
-  hands, comfort, settings, gripTuner, gunTuner,
+  hands, comfort, musicControl, settings, gripTuner, gunTuner,
 };
