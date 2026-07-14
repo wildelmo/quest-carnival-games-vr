@@ -85,6 +85,10 @@ A brass **EXIT bell** on a striped post by the tent's centre pole ends the
 experience — pull its cord (or press `E` on desktop) to ring out, drop back
 to the splash screen and pause the audio.
 
+The bandstand **music** can be toggled on or off at any time — press the
+`B`/`Y` face button on either Quest controller, or `M` on desktop. The choice
+is remembered between sessions.
+
 ![Ball toss booth](docs/balltoss.png)
 ![Balloon dart booth](docs/darts.png)
 

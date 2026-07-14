@@ -22,12 +22,14 @@ import { noseOutHoldQuat } from './Grabbables.js';
  */
 
 /**
- * Master switch — ON while the gun grip is being dialled in on hardware.
- * Once numbers are baked into GUN_HOLD, flip this off like the dart
- * tuner's switch so players can't trip into the panel mid-game (while
- * off, saved headset values are also ignored).
+ * Master switch — the gun grip is dialled in and baked into GUN_HOLD, so
+ * this is OFF (like the dart tuner's switch): players kept squeezing the
+ * empty hand while holding a gun and tripping into the panel, which then
+ * lingered above the gun. Flip to true only to re-tune on hardware; while
+ * off, the panel is never created and saved headset values are ignored, so
+ * the shipped numbers are the single source of truth.
  */
-const TUNER_ENABLED = true;
+const TUNER_ENABLED = false;
 
 const STORE_KEY = 'carnival.gunGrip.v1';
 const MOVE_RATE = 0.03;      // m/s at full stick — slow enough for mm work
