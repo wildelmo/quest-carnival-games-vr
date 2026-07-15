@@ -97,11 +97,14 @@ const HOLE_LIFE = 2;
  * Hand-local hold for the six-shooter. XR numbers were DIALLED IN ON THE
  * HEADSET with the GunGripTuner (hold a gun, squeeze the empty hand's
  * grip) and baked back here — if the grip ever needs re-tuning, do it
- * there and copy the panel numbers, don't guess. Desktop overrides the
+ * there and copy the panel numbers, don't guess. THE PANEL SHOWS ABSOLUTE
+ * VALUES: its `barrel +0.8°` line means noseUp IS 0.8, not "0.8 more than
+ * whatever is baked". This was once mis-baked as seed 55 + 0.8 = 55.8,
+ * which swings the barrel ~55° up out of the fist. Desktop overrides the
  * canned XR swing: the desktop hand frame IS the camera frame, so the
  * barrel just points straight down the view with a whisker of lift.
  */
-const GUN_HOLD = { palm: 0.051, fingers: -0.006, up: 0.016, noseUp: 55.8 };
+const GUN_HOLD = { palm: 0.051, fingers: -0.006, up: 0.016, noseUp: 0.8 };
 function gunHoldQuat(noseUpDeg) {
   const q = noseOutHoldQuat(noseUpDeg);
   q.desktop = new THREE.Quaternion()
